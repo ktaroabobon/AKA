@@ -2,7 +2,7 @@
 
 const Controller = {
   // リプライを生成する関数
-  generateReply: function (userMessage) {
+  generateReply: function (userMessage, isBotMentioned) {
     let replyMessage = NaN;
 
     // 完全一致のメッセージ
@@ -10,14 +10,6 @@ const Controller = {
     if (!Number.isNaN(replyMessage)) {
       return replyMessage
     }
-
-    // BOTがメンションされているかどうか
-    const botId = BOTID;
-    const mentionedUsers = userMessage.annotations.filter(annotation => annotation.type === "USER_MENTION");
-
-    const isBotMentioned = mentionedUsers.some(userMention => {
-      return userMention.userMention.user.name === botId;
-    });
 
     // BOTがメンションされている場合
     if (isBotMentioned) {

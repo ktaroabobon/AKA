@@ -1,80 +1,55 @@
-function getEventAttendeesStatus() {
-  // 以下にカレンダーID、イベントの開始日、終了日を設定してください。
-  const calendarId = 'primary';
-  const date = new Date()
-  const startDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-  const endDate = new Date(date.getFullYear(), date.getMonth(), date.getDate() + 1);
-
-
-
-  console.log(Datetime.formatDateToMonthDay(startDate))
- 
-  lunchEvents = GoogleCalendarApi.getLunchEvent(startDate, endDate)
-
-  function formatDate(date) {
-    return `${date.getMonth() + 1}月${date.getDate()}日`;
-  }
-
-  lunchEvents.forEach(event => {
-    const eventDate = new Date(event.start.dateTime || event.start.date);
-    const mealType = event.summary.match(/昼食|夕食/)[0];
-    let text = `${formatDate(eventDate)}の${mealType}について！\n\n`;
-
-    const menu = event.summary.replace(/昼食|夕食/g, '').trim() || '未定';
-    text += `メニュー：${menu}\n\n`;
-
-    const eatingPeople = [];
-    const notEatingPeople = [];
-    const notAnsweredPeople = [];
-
-    if (event.attendees) {
-      event.attendees.forEach(attendee => {
-        const name = MyDictionary[attendee.email];
-        switch (attendee.responseStatus) {
-          case 'accepted':
-            eatingPeople.push(name);
-            break;
-          case 'declined':
-            notEatingPeople.push(name);
-            break;
-          case 'tentative':
-          case 'delegated':
-          case 'needsAction':
-          default:
-            notAnsweredPeople.push(name);
-            break;
+const testMessage = {
+  "postData": {
+    "contents": {
+      // グループトークでユーザーからメンションと絵文字を含むテキストメッセージが送られた場合
+      "destination": "xxxxxxxxxx",
+      "events": [
+        {
+          "replyToken": "nHuyWiB7yP5Zw52FIkcQobQuGDXCTA",
+          "type": "message",
+          "mode": "active",
+          "timestamp": 1462629479859,
+          "source": {
+            "type": "group",
+            "groupId": "Ca56f94637c...",
+            "userId": "U4af4980629..."
+          },
+          "webhookEventId": "01FZ74A0TDDPYRVKNK77XKC3ZR",
+          "deliveryContext": {
+            "isRedelivery": false
+          },
+          "message": {
+            "id": "444573844083572737",
+            "type": "text",
+            "text": "お昼ご飯",
+            "emojis": [
+              {
+                "index": 29,
+                "length": 6,
+                "productId": "5ac1bfd5040ab15980c9b435",
+                "emojiId": "001"
+              }
+            ],
+            "mention": {
+              "mentionees": [
+                {
+                  "index": 0,
+                  "length": 4,
+                  "type": "all"
+                },
+                {
+                  "index": 5,
+                  "length": 8,
+                  "userId": BOTID,
+                  "type": "user"
+                }
+              ]
+            }
+          }
         }
-      });
-
-      if (eatingPeople.length > 0) {
-        text += '食べる人\n';
-        eatingPeople.forEach(name => {
-          text += `- ${name}\n`;
-        });
-        text += '\n';
-      }
-
-      if (notEatingPeople.length > 0) {
-        text += '食べない人\n';
-        notEatingPeople.forEach(name => {
-          text += `- ${name}\n`;
-        });
-        text += '\n';
-      }
-
-      if (notAnsweredPeople.length > 0) {
-        text += 'まだ答えてない人\n';
-        notAnsweredPeople.forEach(name => {
-          text += `- ${name}\n`;
-        });
-      }
-    } else {
-      text += '招待者なし\n';
+      ]
     }
-
-    text += '\n---------------------\n';
-    console.log(text);
-  });
+  }
 }
 
 function testRandomMessage() {
@@ -82,6 +57,12 @@ function testRandomMessage() {
   console.log(message)
 }
 
-function testgetProperty() {
+function testGetProperty() {
   console.log(PropertiesService.getScriptProperties().getProperty("CHANNEL_ACCESS_TOKEN"))
+}
+
+
+function testLunchReply() {
+  const message = doPost(testMessage)
+  console.log(message)
 }

@@ -19,7 +19,13 @@ const doPost = (e, skipApiCall = false) => {
   const mentionedUsers = JSON.parse(e.postData.contents).events[0].message.mention ? JSON.parse(e.postData.contents).events[0].message.mention.mentionees.filter(
     mentionee => mentionee.type === 'user'
   ) : [];
-  const isBotMentioned = mentionedUsers.some(mentionee => mentionee.userId === BOTID);
+  let isBotMentioned = mentionedUsers.some(mentionee => mentionee.userId === BOTID);
+
+  // 個チャの場合はメンションがついてることにする
+  const isGroupChat = JSON.parse(e.postData.contents).events[0].source.type === 'group';
+  if (!isGroupChat) {
+    isBotMentioned = true;
+  }
 
   if (skipApiCall) {
     return {

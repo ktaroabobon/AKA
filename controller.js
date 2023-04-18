@@ -2,8 +2,8 @@
 
 const Controller = {
   // リプライを生成する関数
-  generateReply: function(userMessage) {
-    let replyMessage = NaN
+  generateReply: function (userMessage) {
+    let replyMessage = NaN;
 
     // 完全一致のメッセージ
     replyMessage = Controller.generateExactMatchReply(userMessage)
@@ -11,33 +11,45 @@ const Controller = {
       return replyMessage
     }
 
-    // 特定の単語が含まれる際のメッセージ
-    replyMessage = Controller.generateReplyForWordInUserMessage(userMessage)
-    if (!Number.isNaN(replyMessage)) {
+    // BOTがメンションされているかどうか
+    const botId = BOTID;
+    const mentionedUsers = userMessage.annotations.filter(annotation => annotation.type === "USER_MENTION");
+
+    const isBotMentioned = mentionedUsers.some(userMention => {
+      return userMention.userMention.user.name === botId;
+    });
+
+    // BOTがメンションされている場合
+    if (isBotMentioned) {
+      // 特定の単語が含まれる際のメッセージ
+      replyMessage = Controller.generateReplyForWordInUserMessage(userMessage)
+      if (!Number.isNaN(replyMessage)) {
+        return replyMessage
+      }
+
+      // ランダムなメッセージ
+      replyMessage = Controller.generateRandomMessage()
       return replyMessage
     }
-
-    replyMessage = Controller.generateRandomMessage()
-    return replyMessage
   },
 
   // ランダムなメッセージを生成する
-  generateRandomMessage: function() {
+  generateRandomMessage: function () {
     return AKA.sayRandom()
   },
 
   // userMessageが完全一致する際のメッセージ
-  generateExactMatchReply: function(userMessage){
+  generateExactMatchReply: function (userMessage) {
     // userMessageが「こんにちは」の場合
     if (userMessage === 'こんにちは') {
-      return  AKA.sayHello()
+      return AKA.sayHello()
     } else {
       return NaN
     }
   },
 
   // userMessageに特定の単語が含まれる際のメッセージ
-  generateReplyForWordInUserMessage: function(userMessage) {
+  generateReplyForWordInUserMessage: function (userMessage) {
     const mealType = this.getMealTypeFromMessage(userMessage);
     if (mealType) {
       return this.handleMealEvent(userMessage, mealType);
@@ -45,7 +57,7 @@ const Controller = {
     return NaN
   },
 
-  getMealTypeFromMessage: function(userMessage) {
+  getMealTypeFromMessage: function (userMessage) {
     for (const lunchKeyword of MyDictionary.lunchKeywords) {
       if (userMessage.includes(lunchKeyword)) {
         return 'lunch';
@@ -62,7 +74,7 @@ const Controller = {
   },
 
   // 食事イベントについてのメッセージを返す
-  handleMealEvent: function(userMessage, mealType) {
+  handleMealEvent: function (userMessage, mealType) {
     // 日付を調べる
     let date = NaN;
 

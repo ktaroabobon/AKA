@@ -16,10 +16,10 @@ const doPost = (e) => {
   const url = 'https://api.line.me/v2/bot/message/reply';
 
   // BOTに対するメンションがあるかどうか
-  const metionsedUsers = JSON.parse(e.postData.contents).events[0].message.mention.mentionees.filter(
+  const mentionedUsers = JSON.parse(e.postData.contents).events[0].message.mention ? JSON.parse(e.postData.contents).events[0].message.mention.mentionees.filter(
     mentionee => mentionee.type === 'user'
-  );
-  const isBotMentioned = metionsedUsers.some(mentionee => mentionee.userId === BOTID);
+  ) : [];
+  const isBotMentioned = mentionedUsers.some(mentionee => mentionee.userId === BOTID);
 
   const response =
     UrlFetchApp.fetch(url, {

@@ -1,7 +1,6 @@
 const testMessage = {
   "postData": {
-    "contents": {
-      // グループトークでユーザーからメンションと絵文字を含むテキストメッセージが送られた場合
+    "contents": JSON.stringify({
       "destination": "xxxxxxxxxx",
       "events": [
         {
@@ -48,9 +47,9 @@ const testMessage = {
           }
         }
       ]
-    }
+    })
   }
-}
+};
 
 function testRandomMessage() {
   const message = AKA.sayRandom()
@@ -63,6 +62,8 @@ function testGetProperty() {
 
 
 function testLunchReply() {
-  const message = doPost(testMessage)
+  const event = JSON.stringify(testMessage)
+  console.log(event)
+  const message = doPost(event)
   console.log(message)
 }

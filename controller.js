@@ -2,27 +2,37 @@
 
 const Controller = {
   // リプライを生成する関数
-  generateReply: function (userMessage, isBotMentioned) {
-    let replyMessage = NaN;
+  generateReply: function (eventType, userMessage, isBotMentioned) {
+    if (eventType === 'join') {
+      return Controller.generateGreetingReply()
+    } else if (eventType === 'message') {
 
-    // 完全一致のメッセージ
-    replyMessage = Controller.generateExactMatchReply(userMessage)
-    if (!Number.isNaN(replyMessage)) {
-      return replyMessage
-    }
+      let replyMessage = NaN;
 
-    // BOTがメンションされている場合
-    if (isBotMentioned) {
-      // 特定の単語が含まれる際のメッセージ
-      replyMessage = Controller.generateReplyForWordInUserMessage(userMessage)
+      // 完全一致のメッセージ
+      replyMessage = Controller.generateExactMatchReply(userMessage)
       if (!Number.isNaN(replyMessage)) {
         return replyMessage
       }
 
-      // ランダムなメッセージ
-      replyMessage = Controller.generateRandomMessage()
-      return replyMessage
+      // BOTがメンションされている場合
+      if (isBotMentioned) {
+        // 特定の単語が含まれる際のメッセージ
+        replyMessage = Controller.generateReplyForWordInUserMessage(userMessage)
+        if (!Number.isNaN(replyMessage)) {
+          return replyMessage
+        }
+
+        // ランダムなメッセージ
+        replyMessage = Controller.generateRandomMessage()
+        return replyMessage
+      }
     }
+  },
+
+  // 参加した際のメッセージ
+  generateGreetingReply: function () {
+    return AKA.sayGreeting()
   },
 
   // ランダムなメッセージを生成する

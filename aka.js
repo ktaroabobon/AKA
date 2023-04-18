@@ -1,14 +1,19 @@
 // 紅のセリフを生成するファイル
 
 const AKA = {
-  say: function(message) {
+  say: function (message) {
     // 一般的なメッセージを生成する関数
     return `${message}\nだよ！`
   },
 
-  sayHello: function() {
+  sayHello: function () {
     // 挨拶をする
     return `こんにちは！ぼく、紅！`
+  },
+
+  sayGreetings: function () {
+    // 参加時の挨拶をする
+    return `こんにちは、僕あか！\n\nちょっとだけ自己紹介するよ\nアメリカ生まれ日本育ちのうさぎさん🐰\n恥ずかしがり屋で外には10年に1回くらいしか出ないけど、密かに世界進出を狙っています(照)\n\nみんなのお手伝いをできることになったのでお手伝いします！\n手伝って欲しいことがあったら＠（メンション）をつけて教えてね。\nあ！もちろん個チャなら＠はいらないよ！\n\nこれからよろしくお願いします！！`
   },
 
   talkAboutMealEvents(mealEvents) {
@@ -77,7 +82,7 @@ const AKA = {
       }
 
       text += '\n---------------------\n';
-      
+
       outputText += text
     });
 
@@ -86,7 +91,7 @@ const AKA = {
 
   sayRandom() {
     const randomIndex = Math.floor(Math.random() * randomMessageList.length);
-    return randomMessageList[randomIndex]; 
+    return randomMessageList[randomIndex];
   }
 };
 

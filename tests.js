@@ -56,6 +56,15 @@ function testGetProperty() {
   console.log(PropertiesService.getScriptProperties().getProperty("CHANNEL_ACCESS_TOKEN"))
 }
 
+function testSayHello() {
+  const message = AKA.sayHello()
+  console.log(message)
+}
+
+function testSayGreetings() {
+  const message = AKA.sayGreetings()
+  console.log(message)
+}
 
 function testLunchReply() {
   const event = JSON.stringify(testMessage);

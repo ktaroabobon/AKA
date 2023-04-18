@@ -9,7 +9,7 @@ const ResponseMessageFormat = {
   }
 }
 
-const doPost = (e) => {
+const doPost = (e, skipApiCall = false) => {
   const replyToken = JSON.parse(e.postData.contents).events[0].replyToken;
   // 投稿したメッセージが入ってくる
   const userMessage = JSON.parse(e.postData.contents).events[0].message.text;
@@ -20,6 +20,12 @@ const doPost = (e) => {
     mentionee => mentionee.type === 'user'
   ) : [];
   const isBotMentioned = mentionedUsers.some(mentionee => mentionee.userId === BOTID);
+
+  if (skipApiCall) {
+    return {
+      getResponseCode: () => 200,
+    };
+  }
 
   const response =
     UrlFetchApp.fetch(url, {

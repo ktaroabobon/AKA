@@ -9,13 +9,7 @@ const ResponseMessageFormat = {
   }
 }
 
-const doPost = (e, skipApiCall = false) => {
-  const event = JSON.parse(e.postData.contents).events[0];
-  const replyToken = event.replyToken;
-  // 投稿したメッセージが入ってくる
-  const userMessage = event.message.text;
-  const url = 'https://api.line.me/v2/bot/message/reply';
-
+const isBotMentioned = (event) => {
   // BOTに対するメンションがあるかどうか
   const mentionedUsers = event.message.mention ? event.message.mention.mentionees.filter(
     mentionee => mentionee.type === 'user'
@@ -27,6 +21,23 @@ const doPost = (e, skipApiCall = false) => {
   if (!isGroupChat) {
     isBotMentioned = true;
   }
+
+  // メッセージの先頭にBOTの名前がある場合はメンションがついてることにする
+  for (const mentionPhrase of mentionPhraseList) {
+    if (event.message.test.startsWith(mentionPhrase)) {
+      isBotMentioned = true;
+    }
+  }
+
+  return isBotMentioned;
+}
+
+const doPost = (e, skipApiCall = false) => {
+  const event = JSON.parse(e.postData.contents).events[0];
+  const replyToken = event.replyToken;
+  // 投稿したメッセージが入ってくる
+  const userMessage = event.message.text;
+  const url = 'https://api.line.me/v2/bot/message/reply';
 
   if (skipApiCall) {
     return {
@@ -46,7 +57,7 @@ const doPost = (e, skipApiCall = false) => {
       'method': 'post',
       'payload': JSON.stringify({
         'replyToken': replyToken,
-        'messages': ResponseMessageFormat.getTextFormat(Controller.generateReply(eventType, userMessage, isBotMentioned)),
+        'messages': ResponseMessageFormat.getTextFormat(Controller.generateReply(eventType, userMessage, isBotMentioned(event))),
       }),
     });
   return response.getResponseCode();

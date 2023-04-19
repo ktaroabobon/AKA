@@ -17,6 +17,12 @@ const Controller = {
 
       // BOTがメンションされている場合
       if (isBotMentioned) {
+        // 自己紹介メッセージ
+        replyMessage = Controller.generateSelfIntroductionReply(userMessage)
+        if (!Number.isNaN(replyMessage)) {
+          return replyMessage
+        }
+
         // 特定の単語が含まれる際のメッセージ
         replyMessage = Controller.generateReplyForWordInUserMessage(userMessage)
         if (!Number.isNaN(replyMessage)) {
@@ -32,7 +38,14 @@ const Controller = {
 
   // 参加した際のメッセージ
   generateGreetingReply: function () {
-    return AKA.sayGreeting()
+    return AKA.sayGreetings()
+  },
+
+  // 自己紹介メッセージ
+  generateSelfIntroductionReply: function (userMessage) {
+    if (userMessage.includes('自己紹介')) {
+      return AKA.sayGreetings()
+    }
   },
 
   // ランダムなメッセージを生成する

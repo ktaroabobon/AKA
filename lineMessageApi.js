@@ -23,9 +23,11 @@ const isBotMentioned = (event) => {
   }
 
   // メッセージの先頭にBOTの名前がある場合はメンションがついてることにする
-  for (const mentionPhrase of mentionPhraseList) {
-    if (event.message.text.startsWith(mentionPhrase)) {
-      isBotMentioned = true;
+  if (event.message.text) {
+    for (const mentionPhrase of mentionPhraseList) {
+      if (event.message.text.startsWith(mentionPhrase)) {
+        isBotMentioned = true;
+      }
     }
   }
 

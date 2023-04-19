@@ -47,13 +47,15 @@ const testMessage = {
   ]
 };
 
+// 組み込み
+function testGetProperty() {
+  console.log(PropertiesService.getScriptProperties().getProperty("CHANNEL_ACCESS_TOKEN"))
+}
+
+// aka.gs
 function testRandomMessage() {
   const message = AKA.sayRandom()
   console.log(message)
-}
-
-function testGetProperty() {
-  console.log(PropertiesService.getScriptProperties().getProperty("CHANNEL_ACCESS_TOKEN"))
 }
 
 function testSayHello() {
@@ -66,6 +68,7 @@ function testSayGreetings() {
   console.log(message)
 }
 
+// lineMessageApi.gs
 function testLunchReply() {
   const event = JSON.stringify(testMessage);
   console.log(event);

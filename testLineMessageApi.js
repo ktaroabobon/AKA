@@ -96,7 +96,7 @@ function testIsBotMentioned() {
   const groupEventWithMentionInText = {
     source: {type: 'group'},
     message: {
-      text: 'BOT_NAME こんにちは',
+      text: 'あか！ こんにちは',
     },
   };
   console.log('Group chat with bot name in text:', isBotMentioned(groupEventWithMentionInText));

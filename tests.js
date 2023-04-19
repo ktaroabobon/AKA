@@ -75,3 +75,34 @@ function testLunchReply() {
   const message = doPost({postData: {contents: event}}, true);
   console.log(message);
 }
+
+// controller.gs
+function testGenerateReply() {
+  // Test join event
+  const joinReply = Controller.generateReply('join');
+  console.log('Join Reply:', joinReply);
+
+  // Test exact match
+  const exactMatchReply = Controller.generateReply('message', 'こんにちは', false);
+  console.log('Exact Match Reply:', exactMatchReply);
+
+  // Test self-introduction
+  const selfIntroductionReply = Controller.generateReply('message', '@bot 自己紹介', true);
+  console.log('Self Introduction Reply:', selfIntroductionReply);
+
+  // Test user message with lunch keyword
+  const lunchReply = Controller.generateReply('message', '今日のお昼ご飯は？', true);
+  console.log('Lunch Reply:', lunchReply);
+
+  // Test user message with dinner keyword
+  const dinnerReply = Controller.generateReply('message', '明日の夕食は？', true);
+  console.log('Dinner Reply:', dinnerReply);
+
+  // Test random message when mentioned
+  const randomReply = Controller.generateReply('message', '何か言って', true);
+  console.log('Random Message Reply:', randomReply);
+
+  // Test no reply when not mentioned
+  const noReply = Controller.generateReply('message', 'こんにちは', false);
+  console.log('No reply (not mentioned):', noReply);
+}

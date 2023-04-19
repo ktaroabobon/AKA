@@ -18,3 +18,4 @@ function testSayGreetings() {
   const message = AKA.sayGreetings()
   console.log(message)
 }
+

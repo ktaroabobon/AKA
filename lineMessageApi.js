@@ -10,19 +10,20 @@ const ResponseMessageFormat = {
 }
 
 const doPost = (e, skipApiCall = false) => {
-  const replyToken = JSON.parse(e.postData.contents).events[0].replyToken;
+  const event = JSON.parse(e.postData.contents).events[0];
+  const replyToken = event.replyToken;
   // 投稿したメッセージが入ってくる
-  const userMessage = JSON.parse(e.postData.contents).events[0].message.text;
+  const userMessage = event.message.text;
   const url = 'https://api.line.me/v2/bot/message/reply';
 
   // BOTに対するメンションがあるかどうか
-  const mentionedUsers = JSON.parse(e.postData.contents).events[0].message.mention ? JSON.parse(e.postData.contents).events[0].message.mention.mentionees.filter(
+  const mentionedUsers = event.message.mention ? event.message.mention.mentionees.filter(
     mentionee => mentionee.type === 'user'
   ) : [];
   let isBotMentioned = mentionedUsers.some(mentionee => mentionee.userId === BOTID);
 
   // 個チャの場合はメンションがついてることにする
-  const isGroupChat = JSON.parse(e.postData.contents).events[0].source.type === 'group';
+  const isGroupChat = event.source.type === 'group';
   if (!isGroupChat) {
     isBotMentioned = true;
   }
@@ -33,6 +34,9 @@ const doPost = (e, skipApiCall = false) => {
     };
   }
 
+  // イベントタイプを取得
+  const eventType = event.type;
+
   const response =
     UrlFetchApp.fetch(url, {
       'headers': {
@@ -42,7 +46,7 @@ const doPost = (e, skipApiCall = false) => {
       'method': 'post',
       'payload': JSON.stringify({
         'replyToken': replyToken,
-        'messages': ResponseMessageFormat.getTextFormat(Controller.generateReply(userMessage, isBotMentioned)),
+        'messages': ResponseMessageFormat.getTextFormat(Controller.generateReply(eventType, userMessage, isBotMentioned)),
       }),
     });
   return response.getResponseCode();

@@ -6,7 +6,7 @@ const MyDictionary = {
     '本日',
     'ほんじつ',
   ],
-  tomorrowKeywords:[
+  tomorrowKeywords: [
     '明日',
     'あした',
     'あす',

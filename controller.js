@@ -46,6 +46,7 @@ const Controller = {
     if (userMessage.includes('自己紹介')) {
       return AKA.sayGreetings()
     }
+    return NaN
   },
 
   // ランダムなメッセージを生成する
@@ -72,6 +73,7 @@ const Controller = {
     return NaN
   },
 
+  // userMessageに含まれる食事タイプを返す
   getMealTypeFromMessage: function (userMessage) {
     for (const lunchKeyword of MyDictionary.lunchKeywords) {
       if (userMessage.includes(lunchKeyword)) {
@@ -85,7 +87,7 @@ const Controller = {
       }
     }
 
-    return null;
+    return NaN;
   },
 
   // 食事イベントについてのメッセージを返す

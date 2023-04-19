@@ -92,16 +92,5 @@ const AKA = {
   sayRandom() {
     const randomIndex = Math.floor(Math.random() * randomMessageList.length);
     return randomMessageList[randomIndex];
-  }
+  },
 };
-
-
-const randomMessageList = [
-  'あかはねー、元気だよ！',
-  'この前のドブ運動会で優勝したよ！',
-  '僕は灰色ウサギじゃなくて、し・ろ・う・さ・ぎ！！',
-  '僕の名前は赤じゃなくて、紅だよ！',
-  '♪レンジで〜3分〜したならば〜〜〜',
-  '今度セカンドアルバム発売するから聴いてね！\n曲は...まだ作ってない！',
-  'にんじんください！',
-]

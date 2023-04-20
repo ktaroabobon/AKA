@@ -22,23 +22,31 @@ const isBotMentioned = (event) => {
     isBotMentioned = true;
   }
 
+  const userMessage = event.message.text
+  let newUserMessage = userMessage
+
   // メッセージの先頭にBOTの名前がある場合はメンションがついてることにする
-  if (event.message.text) {
+  if (userMessage) {
     for (const mentionPhrase of mentionPhraseList) {
-      if (event.message.text.startsWith(mentionPhrase)) {
+      if (userMessage.startsWith(mentionPhrase)) {
         isBotMentioned = true;
+        newUserMessage = userMessage.slice(mentionPhrase.length).trim();
+        break;
       }
     }
   }
 
-  return isBotMentioned;
+  return {
+    isBotMentioned: isBotMentioned,
+    userMessage: newUserMessage,
+  };
 }
 
 const doPost = (e, skipApiCall = false) => {
   const event = JSON.parse(e.postData.contents).events[0];
   const replyToken = event.replyToken;
   // 投稿したメッセージが入ってくる
-  const userMessage = event.message.text;
+  let userMessage = event.message.text;
   const url = 'https://api.line.me/v2/bot/message/reply';
 
   if (skipApiCall) {
@@ -50,6 +58,11 @@ const doPost = (e, skipApiCall = false) => {
   // イベントタイプを取得
   const eventType = event.type;
 
+  const isMentionedInfo = isBotMentioned(event)
+  const isMentioned = isMentionedInfo.isBotMentioned
+  userMessage = isMentionedInfo.userMessage
+
+
   const response =
     UrlFetchApp.fetch(url, {
       'headers': {
@@ -59,7 +72,7 @@ const doPost = (e, skipApiCall = false) => {
       'method': 'post',
       'payload': JSON.stringify({
         'replyToken': replyToken,
-        'messages': ResponseMessageFormat.getTextFormat(Controller.generateReply(eventType, userMessage, isBotMentioned(event))),
+        'messages': ResponseMessageFormat.getTextFormat(Controller.generateReply(eventType, userMessage, isMentioned)),
       }),
     });
   return response.getResponseCode();

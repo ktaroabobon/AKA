@@ -58,46 +58,91 @@ function testLunchReply() {
 }
 
 function testIsBotMentioned() {
-  // Test bot mention in group chat
-  const groupEventWithMention = {
-    source: {type: 'group'},
+  // Test Case 1: Group chat with a mention
+  const testEvent1 = {
     message: {
       mention: {
         mentionees: [
-          {type: 'user', userId: BOTID},
-          {type: 'user', userId: 'otherUserId'},
+          {
+            type: 'user',
+            userId: BOTID,
+          },
         ],
       },
+      text: 'あか、おはようございます。',
+    },
+    source: {
+      type: 'group',
     },
   };
-  console.log('Group chat with bot mention:', isBotMentioned(groupEventWithMention));
+  const result1 = isBotMentioned(testEvent1);
+  if (result1.isBotMentioned && result1.userMessage === 'おはようございます。') {
+    console.log('Test Case 1: Passed');
+  } else {
+    console.log('Test Case 1: Failed');
+  }
 
-  // Test no bot mention in group chat
-  const groupEventWithoutMention = {
-    source: {type: 'group'},
+  // Test Case 2: Group chat without a mention
+  const testEvent2 = {
     message: {
-      mention: {
-        mentionees: [
-          {type: 'user', userId: 'otherUserId'},
-        ],
-      },
+      text: 'おはようございます',
+    },
+    source: {
+      type: 'group',
     },
   };
-  console.log('Group chat without bot mention:', isBotMentioned(groupEventWithoutMention));
+  const result2 = isBotMentioned(testEvent2);
+  if (!result2.isBotMentioned && result2.userMessage === 'おはようございます') {
+    console.log('Test Case 2: Passed');
+  } else {
+    console.log('Test Case 2: Failed');
+  }
 
-  // Test private chat
-  const privateEvent = {
-    source: {type: 'user'},
-    message: {},
-  };
-  console.log('Private chat:', isBotMentioned(privateEvent));
-
-  // Test bot name in message text
-  const groupEventWithMentionInText = {
-    source: {type: 'group'},
+  // Test Case 3: Private chat without a mention
+  const testEvent3 = {
     message: {
-      text: 'あか！ こんにちは',
+      text: 'おはようございます',
+    },
+    source: {
+      type: 'user',
     },
   };
-  console.log('Group chat with bot name in text:', isBotMentioned(groupEventWithMentionInText));
+  const result3 = isBotMentioned(testEvent3);
+  if (result3.isBotMentioned && result3.userMessage === 'おはようございます') {
+    console.log('Test Case 3: Passed');
+  } else {
+    console.log('Test Case 3: Failed');
+  }
+
+  // Test Case 4: Message starts with a mention phrase
+  const testEvent4 = {
+    message: {
+      text: 'あか、おはよう',
+    },
+    source: {
+      type: 'group',
+    },
+  };
+  const result4 = isBotMentioned(testEvent4);
+  if (result4.isBotMentioned && result4.userMessage === 'おはよう') {
+    console.log('Test Case 4: Passed');
+  } else {
+    console.log('Test Case 4: Failed');
+  }
+
+  // Test Case 4: Message starts with two mention phrases
+  const testEvent5 = {
+    message: {
+      text: 'あか、あか、おはよう',
+    },
+    source: {
+      type: 'group',
+    },
+  };
+  const result5 = isBotMentioned(testEvent5);
+  if (result5.isBotMentioned && result5.userMessage === 'あか、おはよう') {
+    console.log('Test Case 5: Passed');
+  } else {
+    console.log('Test Case 5: Failed');
+  }
 }

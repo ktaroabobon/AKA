@@ -16,23 +16,11 @@ $ git clone
 $ npm install
 ```
 
-### 3. 環境変数を設定
-
-```bash
-$ cp .env.sample .env
-```
-
-### 4. ローカルサーバーを起動
-
-```bash
-$ npm start
-```
-
-### 5. LINE Developersでチャネルを作成
+### 3. LINE Developersでチャネルを作成
 
 [LINE Developers](https://developers.line.biz/ja/)にアクセスし、チャネルを作成します。
 
-### 6. チャネルの設定
+### 4. チャネルの設定
 
 チャネルの設定を行います。
 

@@ -1,0 +1,27 @@
+{
+  "name": "ai",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "AKA AI backend (Hono on Cloud Run)",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/index.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@google/genai": "^1.0.0",
+    "@hono/node-server": "^1.13.7",
+    "@hono/zod-validator": "^0.4.1",
+    "hono": "^4.6.13",
+    "pino": "^9.5.0",
+    "zod": "^3.24.0"
+  },
+  "devDependencies": {
+    "pino-pretty": "^13.0.0",
+    "vitest": "^2.1.8"
+  }
+}

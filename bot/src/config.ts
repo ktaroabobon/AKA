@@ -3,7 +3,6 @@
 
 const KEY_CHANNEL_ACCESS_TOKEN = "CHANNEL_ACCESS_TOKEN";
 const KEY_BOT_ID = "BOT_ID";
-const KEY_CALENDAR_ID = "CALENDAR_ID";
 
 function getProperty(key: string): string | null {
   return PropertiesService.getScriptProperties().getProperty(key);
@@ -23,8 +22,4 @@ export function getChannelAccessToken(): string {
 
 export function getBotId(): string {
   return getRequired(KEY_BOT_ID);
-}
-
-export function getCalendarId(): string {
-  return getProperty(KEY_CALENDAR_ID) ?? "primary";
 }

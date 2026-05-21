@@ -8,7 +8,6 @@ AKA の LLM 応答バックエンド。Hono を Node.js ランタイムで動か
 |---|---|---|
 | GET | `/health` | ヘルスチェック |
 | POST | `/chat/genai` | Gemini を使って応答生成 |
-| POST | `/chat/openai` | （現状未サポート、エラーレスポンスを返す） |
 
 リクエスト／レスポンスの詳細は `src/schemas/chat.ts` の zod スキーマを参照。
 

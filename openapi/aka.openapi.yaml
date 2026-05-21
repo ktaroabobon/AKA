@@ -61,31 +61,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
-  /chat/openai:
-    post:
-      operationId: postChatOpenai
-      tags: [Chat]
-      summary: OpenAI 互換エンドポイント（現状未サポート）
-      description: 旧 Python 実装互換のスタブ。常に 501 を返す。
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/ChatRequest"
-      responses:
-        "501":
-          description: 未サポート
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "400":
-          description: 不正なリクエスト
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
 components:
   schemas:
     HealthResponse:
@@ -121,7 +96,7 @@ components:
       properties:
         error:
           type: string
-          description: エラーコード（invalid_request / invalid_api_key / genai_failed / openai_not_supported / internal_error）
+          description: エラーコード（invalid_request / invalid_api_key / genai_failed / internal_error）
         message:
           type: string
           description: 補足メッセージ

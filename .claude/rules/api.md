@@ -27,7 +27,7 @@ OpenAPI で `ErrorResponse` として定義済み：
 
 ```ts
 type ErrorResponse = {
-  error: string;            // invalid_request / invalid_api_key / genai_failed / openai_not_supported / internal_error
+  error: string;            // invalid_request / invalid_api_key / genai_failed / internal_error
   message?: string;         // 補足
   detail?: unknown;         // バリデーションエラーなど
 };
@@ -46,5 +46,4 @@ type ErrorResponse = {
 ## ai → 外部 API
 
 - Gemini は `@google/genai` SDK 経由
-- OpenAI は現状未サポート（`OpenAINotSupportedError` を投げて 501 を返す）
 - 外部 API の例外は必ずサービス層でカスタムエラー（`GenaiServiceError` 等）に包んでから上に投げる

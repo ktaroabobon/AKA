@@ -1,68 +1,56 @@
-# AKA(LINE BOT)
+# AKA
 
-AKA(LINE BOT)のプロジェクトのリポジトリです。
+妹のぬいぐるみ「紅（あか）」を LINE Bot 化した会話プロジェクトの monorepo。
 
-## 使い方
+## 構成
 
-### 1. リポジトリをクローン
-
-```bash
-$ git clone
+```
+AKA/
+  bot/    GAS(TypeScript) — LINE Webhook 受信と応答ルーティング（#18 で実装）
+  ai/     Cloud Run(TypeScript + Hono) — LLM 応答バックエンド（#19 で実装）
 ```
 
-### 2. パッケージをインストール
+- `bot/` は GAS 上で動く LINE Bot。`doPost(e)` で LINE Webhook を受け、必要に応じて `ai/` を呼び出す。
+- `ai/` は Cloud Run 上で動く Hono サーバ。Gemini（`@google/genai`）を呼んで応答を生成する。
+- リポジトリは pnpm workspace で管理され、ランタイムは `mise.toml` で固定。
+
+## 必要なツール
+
+- [mise](https://mise.jdx.dev/) — `mise install` でリポジトリ指定の Node / pnpm がそろう
+- (Bot 用) Google アカウント / [clasp](https://github.com/google/clasp)
+- (AI 用) Google Cloud SDK / Docker
+
+## クイックスタート
 
 ```bash
-$ npm install
+mise install
+pnpm install
 ```
 
-### 3. LINE Developersでチャネルを作成
-
-[LINE Developers](https://developers.line.biz/ja/)にアクセスし、チャネルを作成します。
-
-### 4. チャネルの設定
-
-チャネルの設定を行います。
-
-- Webhook URLに`https://<your-domain>/webhook`を設定
-- アクセストークンを発行し、`.env`に設定
-- チャネルシークレットを発行し、`.env`に設定
-- チャネルアクセストークンを発行し、`.env`に設定
-- メッセージ送信の許可を有効にする
-- フォロー、アンフォロー、ブロック、アンブロックの許可を有効にする
-- プロバイダーの許可を有効にする
-- グループ、ルームの許可を有効にする
-
-## 開発の仕方
-
-### 1. リポジトリをクローン
+### Bot (GAS)
 
 ```bash
-$ git clone
+make build       # bot/src を esbuild で IIFE バンドルして bot/dist に出力
+make deploy      # build 後に clasp push で GAS プロジェクトへデプロイ
+make console     # bot/.clasp.json の scriptId から GAS エディタを開く
 ```
 
-### 2. パッケージをインストール
+### AI (Hono on Cloud Run)
 
 ```bash
-$ npm install
+make ai/dev      # ローカル開発サーバ
+make ai/build    # ビルド
+make ai/test     # vitest
 ```
 
-### claspからgoogle accountにログイン
+### 品質チェック
 
 ```bash
-$ clasp login
+make lint
+make format
+make typecheck
 ```
 
-### claspでプロジェクトを選択
+## ロードマップ
 
-```bash
-$ clasp clone <script id>
-```
-
-script idは、[Google Apps Script](https://script.google.com/home)で確認できます。
-
-### gasのコードをローカルにダウンロード
-
-```bash
-$ clasp pull
-```
+進行中のサブ Issue は [#16](https://github.com/ktaroabobon/AKA/issues/16) を参照。

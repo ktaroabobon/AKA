@@ -2,12 +2,6 @@ import { describe, expect, it, vi } from "vitest";
 import "./setup.js";
 import { generateReply } from "../src/controller.js";
 
-vi.mock("../src/googleCalendarApi.js", () => ({
-  getEvents: vi.fn(() => ({ items: [] })),
-  getLunchEvents: vi.fn(() => []),
-  getDinnerEvents: vi.fn(() => []),
-}));
-
 describe("generateReply", () => {
   it("join event returns greeting", () => {
     const reply = generateReply({
@@ -18,40 +12,83 @@ describe("generateReply", () => {
     expect(reply).toContain("こんにちは、僕あか");
   });
 
-  it("exact match こんにちは responds to anyone", () => {
-    const reply = generateReply({
-      eventType: "message",
-      userMessage: "こんにちは",
-      isBotMentioned: false,
-    });
+  it("exact match こんにちは responds to anyone (no AI call)", () => {
+    const ai = vi.fn();
+    const reply = generateReply(
+      { eventType: "message", userMessage: "こんにちは", isBotMentioned: false },
+      { ai },
+    );
     expect(reply).toBe("こんにちは！ぼく、紅！");
+    expect(ai).not.toHaveBeenCalled();
   });
 
-  it("self introduction when mentioned", () => {
-    const reply = generateReply({
-      eventType: "message",
-      userMessage: "自己紹介して",
-      isBotMentioned: true,
-    });
+  it("self introduction when mentioned (no AI call)", () => {
+    const ai = vi.fn();
+    const reply = generateReply(
+      {
+        eventType: "message",
+        userMessage: "自己紹介して",
+        isBotMentioned: true,
+      },
+      { ai },
+    );
     expect(reply).toContain("こんにちは、僕あか");
+    expect(ai).not.toHaveBeenCalled();
   });
 
-  it("non-mentioned, non-exact-match → null", () => {
-    const reply = generateReply({
-      eventType: "message",
-      userMessage: "おはよう",
-      isBotMentioned: false,
-    });
+  it("non-mentioned, non-exact-match → null (no AI call)", () => {
+    const ai = vi.fn();
+    const reply = generateReply(
+      { eventType: "message", userMessage: "おはよう", isBotMentioned: false },
+      { ai },
+    );
     expect(reply).toBeNull();
+    expect(ai).not.toHaveBeenCalled();
   });
 
-  it("mentioned with random fallback returns non-empty string", () => {
-    const reply = generateReply({
-      eventType: "message",
-      userMessage: "何かしゃべって",
-      isBotMentioned: true,
-    });
-    expect(typeof reply).toBe("string");
-    expect((reply as string).length).toBeGreaterThan(0);
+  it("mentioned with free-form prompt → calls AI and returns its reply", () => {
+    const ai = vi.fn(() => "あかはね〜、今日も元気だよ〜！");
+    const fallback = vi.fn(() => "(should not be called)");
+    const reply = generateReply(
+      {
+        eventType: "message",
+        userMessage: "今何してたの？",
+        isBotMentioned: true,
+      },
+      { ai, fallback },
+    );
+    expect(ai).toHaveBeenCalledWith("今何してたの？");
+    expect(reply).toBe("あかはね〜、今日も元気だよ〜！");
+    expect(fallback).not.toHaveBeenCalled();
+  });
+
+  it("AI failure → fallback is used", () => {
+    const ai = vi.fn(() => null);
+    const fallback = vi.fn(() => "random!");
+    const reply = generateReply(
+      {
+        eventType: "message",
+        userMessage: "なんか喋って",
+        isBotMentioned: true,
+      },
+      { ai, fallback },
+    );
+    expect(ai).toHaveBeenCalledOnce();
+    expect(fallback).toHaveBeenCalledOnce();
+    expect(reply).toBe("random!");
+  });
+
+  it("AI returns empty string → fallback is used", () => {
+    const ai = vi.fn(() => "");
+    const fallback = vi.fn(() => "random!");
+    const reply = generateReply(
+      {
+        eventType: "message",
+        userMessage: "なんか喋って",
+        isBotMentioned: true,
+      },
+      { ai, fallback },
+    );
+    expect(reply).toBe("random!");
   });
 });

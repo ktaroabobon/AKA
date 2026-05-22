@@ -1,0 +1,104 @@
+openapi: 3.1.0
+info:
+  title: AKA-AI
+  version: 0.1.0
+  description: |
+    AKA の LLM 応答バックエンド。GAS の bot から呼び出される。
+servers:
+  - url: http://localhost:8080
+    description: ローカル開発
+  - url: https://aka-ai-api-service-lp2rjkac3a-an.a.run.app
+    description: 本番 (Cloud Run)
+tags:
+  - name: Health
+  - name: Chat
+paths:
+  /health:
+    get:
+      operationId: getHealth
+      tags: [Health]
+      summary: ヘルスチェック
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+  /chat/genai:
+    post:
+      operationId: postChatGenai
+      tags: [Chat]
+      summary: Gemini に問い合わせて応答を取得する
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChatRequest"
+      responses:
+        "200":
+          description: 応答テキスト
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatResponse"
+        "400":
+          description: 不正なリクエスト or 不正な API キー
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "502":
+          description: 上流 Gemini 呼び出し失敗
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: 内部エラー
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+components:
+  schemas:
+    HealthResponse:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [ok]
+          example: ok
+    ChatRequest:
+      type: object
+      required: [prompt, encrypted_api_key]
+      properties:
+        prompt:
+          type: string
+          minLength: 1
+          description: ユーザーからの発話
+        encrypted_api_key:
+          type: string
+          minLength: 1
+          description: base64 でエンコードされた Gemini API キー
+    ChatResponse:
+      type: object
+      required: [reply]
+      properties:
+        reply:
+          type: string
+          description: あかの応答テキスト
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+          description: エラーコード（invalid_request / invalid_api_key / genai_failed / internal_error）
+        message:
+          type: string
+          description: 補足メッセージ
+        detail:
+          description: バリデーションエラーなど構造化情報

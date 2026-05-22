@@ -10,7 +10,8 @@
     "lint": "eslint .",
     "format": "prettier --check .",
     "format:write": "prettier --write .",
-    "typecheck": "pnpm -r typecheck"
+    "typecheck": "pnpm -r typecheck",
+    "gen:types": "openapi-typescript openapi/aka.openapi.yaml -o ai/src/api/generated.ts && openapi-typescript openapi/aka.openapi.yaml -o bot/src/api/generated.ts"
   },
   "devDependencies": {
     "@google/clasp": "^2.5.0",
@@ -21,6 +22,7 @@
     "esbuild": "^0.24.0",
     "eslint": "^9.17.0",
     "eslint-config-prettier": "^9.1.0",
+    "openapi-typescript": "^7.5.0",
     "prettier": "^3.4.2",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2"

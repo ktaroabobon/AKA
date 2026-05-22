@@ -1,7 +1,7 @@
 SHELL := /bin/bash
 MAKEFLAGS += --no-print-directory
 
-.PHONY: help install build deploy console ai/dev ai/build ai/test lint format typecheck
+.PHONY: help install build deploy console ai/dev ai/build ai/test lint format typecheck oapi/types oapi/check-gen
 
 help:
 	@echo "AKA monorepo — make targets"
@@ -22,6 +22,10 @@ help:
 	@echo "    lint          Run ESLint at the repo root"
 	@echo "    format        Check Prettier formatting"
 	@echo "    typecheck     Run tsc --noEmit across workspaces"
+	@echo ""
+	@echo "  OpenAPI"
+	@echo "    oapi/types       Generate TS types from openapi/aka.openapi.yaml"
+	@echo "    oapi/check-gen   Fail if generated types are out of date (for CI)"
 
 install:
 	pnpm install
@@ -66,3 +70,16 @@ format:
 
 typecheck:
 	pnpm typecheck
+
+# ---------------- OpenAPI ----------------
+
+oapi/types:
+	pnpm gen:types
+
+oapi/check-gen:
+	@$(MAKE) oapi/types > /dev/null
+	@if ! git diff --exit-code --quiet ai/src/api/generated.ts bot/src/api/generated.ts; then \
+		echo "Generated types are out of date. Run 'make oapi/types' and commit the result." >&2; \
+		git diff --stat ai/src/api/generated.ts bot/src/api/generated.ts >&2; \
+		exit 1; \
+	fi

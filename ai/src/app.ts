@@ -2,14 +2,12 @@ import { Hono } from "hono";
 import { createHealthRoute } from "./routes/health.js";
 import { createChatRoute } from "./routes/chat.js";
 import { createGenaiService } from "./services/genai.js";
-import { createOpenAIService } from "./services/openai.js";
 import { createLogger } from "./lib/logger.js";
 import type { Env } from "./config/env.js";
 
 export function createApp(env: Env) {
   const logger = createLogger(env);
   const genaiService = createGenaiService(env);
-  const openaiService = createOpenAIService();
 
   const app = new Hono();
 
@@ -33,7 +31,7 @@ export function createApp(env: Env) {
   });
 
   app.route("/", createHealthRoute());
-  app.route("/", createChatRoute({ genaiService, openaiService, logger }));
+  app.route("/", createChatRoute({ genaiService, logger }));
 
   return { app, logger };
 }

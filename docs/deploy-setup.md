@@ -104,11 +104,11 @@ pbcopy < ~/.clasprc.json
 リポジトリの **Settings → Secrets and variables → Actions → New repository secret** で
 以下を登録する。
 
-| Secret 名 | 値 |
-|---|---|
-| `GCP_WIF_PROVIDER` | 上記 1.6) の出力 (`projects/<NUM>/locations/global/workloadIdentityPools/github-pool/providers/github-provider`) |
-| `GCP_SERVICE_ACCOUNT` | `github-actions-deployer@aka-ai-api.iam.gserviceaccount.com` |
-| `CLASPRC_JSON` | `~/.clasprc.json` の中身を改行込みで貼る |
+| Secret 名             | 値                                                                                                               |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `GCP_WIF_PROVIDER`    | 上記 1.6) の出力 (`projects/<NUM>/locations/global/workloadIdentityPools/github-pool/providers/github-provider`) |
+| `GCP_SERVICE_ACCOUNT` | `github-actions-deployer@aka-ai-api.iam.gserviceaccount.com`                                                     |
+| `CLASPRC_JSON`        | `~/.clasprc.json` の中身を改行込みで貼る                                                                         |
 
 確認:
 

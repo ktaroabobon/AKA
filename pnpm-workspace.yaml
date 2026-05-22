@@ -2,6 +2,12 @@ packages:
   - "bot"
   - "ai"
 
+# packageManager フィールドからの自動バージョン切り替えを無効化する。
+# ローカル (mise 経由の pnpm) と Cloud Build (corepack 経由) で
+# 個別にバージョンを管理し、pnpm が ~/Library/pnpm/.tools 配下に
+# ネイティブビルドを取りに行って失敗するのを防ぐ。
+manage-package-manager-versions: false
+
 allowBuilds:
   "@google/genai": true
   esbuild: true

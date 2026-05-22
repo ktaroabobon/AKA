@@ -5,8 +5,11 @@ FROM node:22-alpine AS builder
 
 WORKDIR /workspace
 
-# pnpm を有効化（packageManager で固定したバージョンが使われる）
-RUN corepack enable
+# pnpm を有効化し、Cloud Build / ローカル両環境で同じ版を使う。
+# package.json の packageManager フィールドは使わない方針（pnpm 10/11
+# の自動切り替え機能が ENOENT を起こす環境があるため）なので、
+# corepack に明示的に pnpm 11.2.2 を activate する。
+RUN corepack enable && corepack prepare pnpm@11.2.2 --activate
 
 # monorepo の依存解決に必要な manifest をすべて先にコピー
 # bot 側もワークスペース定義に必要なため manifest だけ含める

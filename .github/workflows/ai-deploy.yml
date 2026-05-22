@@ -1,5 +1,13 @@
 name: Deploy ai to Cloud Run
 
+# 必要な事前セットアップは docs/deploy-setup.md を参照。
+# デプロイ SA (github-actions-deployer) には以下のロールが必要:
+#   - roles/cloudbuild.builds.editor
+#   - roles/run.admin
+#   - roles/iam.serviceAccountUser
+#   - roles/storage.admin
+#   - roles/artifactregistry.reader  (Cloud Run deploy の pre-check で必須)
+
 on:
   workflow_dispatch:
     inputs:

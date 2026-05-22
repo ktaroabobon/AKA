@@ -1,5 +1,8 @@
 name: Deploy bot to GAS
 
+# 必要な事前セットアップ (clasp credentials / GitHub Secret CLASPRC_JSON)
+# は docs/deploy-setup.md を参照。
+
 on:
   workflow_dispatch:
     inputs:

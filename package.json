@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "description": "AKA — LINE Bot \"紅\" and its AI backend (monorepo: bot/ + ai/)",
+  "packageManager": "pnpm@11.2.2",
   "engines": {
     "node": ">=22.0.0"
   },

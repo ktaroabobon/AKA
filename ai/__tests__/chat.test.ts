@@ -1,9 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { createChatRoute } from "../src/routes/chat.js";
-import {
-  GenaiServiceError,
-  type GenaiService,
-} from "../src/services/genai.js";
+import { GenaiServiceError, type GenaiService } from "../src/services/genai.js";
 import { ApiKeyDecodeError } from "../src/lib/decode.js";
 import type { Logger } from "../src/lib/logger.js";
 
@@ -46,7 +43,9 @@ describe("POST /chat/genai", () => {
       makeRequest({ prompt: "こんにちは", encrypted_api_key: "x" }),
     );
     expect(res.status).toBe(200);
-    await expect(res.json()).resolves.toEqual({ reply: "あかはねー、元気だよ！" });
+    await expect(res.json()).resolves.toEqual({
+      reply: "あかはねー、元気だよ！",
+    });
   });
 
   it("returns 400 when prompt is missing", async () => {
@@ -67,7 +66,9 @@ describe("POST /chat/genai", () => {
       makeRequest({ prompt: "hi", encrypted_api_key: "x" }),
     );
     expect(res.status).toBe(400);
-    await expect(res.json()).resolves.toMatchObject({ error: "invalid_api_key" });
+    await expect(res.json()).resolves.toMatchObject({
+      error: "invalid_api_key",
+    });
   });
 
   it("returns 502 when genai service fails", async () => {

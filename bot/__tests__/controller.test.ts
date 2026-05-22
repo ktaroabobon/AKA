@@ -15,7 +15,11 @@ describe("generateReply", () => {
   it("exact match こんにちは responds to anyone (no AI call)", () => {
     const ai = vi.fn();
     const reply = generateReply(
-      { eventType: "message", userMessage: "こんにちは", isBotMentioned: false },
+      {
+        eventType: "message",
+        userMessage: "こんにちは",
+        isBotMentioned: false,
+      },
       { ai },
     );
     expect(reply).toBe("こんにちは！ぼく、紅！");

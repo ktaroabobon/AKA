@@ -6,7 +6,9 @@ const envSchema = z.object({
     .enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"])
     .default("info"),
   GEMINI_MODEL: z.string().min(1).default("gemini-2.0-flash-001"),
-  NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
+  NODE_ENV: z
+    .enum(["development", "production", "test"])
+    .default("development"),
 });
 
 export type Env = z.infer<typeof envSchema>;

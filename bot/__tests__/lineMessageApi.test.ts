@@ -4,11 +4,18 @@ import { TestConstants } from "./setup.js";
 import { isBotMentioned } from "../src/lineMessageApi.js";
 import type { LineEvent } from "../src/types/line.js";
 
-function buildEvent(partial: Partial<LineEvent> & {
-  text?: string;
-  mentionees?: Array<{ type: "user" | "all"; userId?: string; index?: number; length?: number }>;
-  sourceType?: "user" | "group" | "room";
-}): LineEvent {
+function buildEvent(
+  partial: Partial<LineEvent> & {
+    text?: string;
+    mentionees?: Array<{
+      type: "user" | "all";
+      userId?: string;
+      index?: number;
+      length?: number;
+    }>;
+    sourceType?: "user" | "group" | "room";
+  },
+): LineEvent {
   const mentionees = partial.mentionees ?? [];
   return {
     type: "message",

@@ -2,10 +2,7 @@ import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { chatRequestSchema } from "../schemas/chat.js";
 import { ApiKeyDecodeError } from "../lib/decode.js";
-import {
-  GenaiServiceError,
-  type GenaiService,
-} from "../services/genai.js";
+import { GenaiServiceError, type GenaiService } from "../services/genai.js";
 import type { Logger } from "../lib/logger.js";
 
 export interface ChatRouteDeps {

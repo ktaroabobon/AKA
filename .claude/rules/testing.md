@@ -8,12 +8,12 @@
 
 ## コマンド
 
-| コマンド | 用途 |
-|---------|------|
-| `pnpm --filter bot test` | bot のテスト実行 |
-| `pnpm --filter ai test` | ai のテスト実行 |
-| `pnpm --filter <pkg> test:watch` | ウォッチモード |
-| `pnpm -r typecheck` | 両 workspace の型チェック |
+| コマンド                         | 用途                      |
+| -------------------------------- | ------------------------- |
+| `pnpm --filter bot test`         | bot のテスト実行          |
+| `pnpm --filter ai test`          | ai のテスト実行           |
+| `pnpm --filter <pkg> test:watch` | ウォッチモード            |
+| `pnpm -r typecheck`              | 両 workspace の型チェック |
 
 ## テストを書く基準
 
@@ -40,7 +40,7 @@
 GAS のグローバル API（`PropertiesService`, `UrlFetchApp`, `Calendar`）は `vi.stubGlobal` でモック化する。`bot/__tests__/setup.ts` に共通のスタブを集約してあるので、各テストはそれを `import "./setup.js"` する。
 
 ```ts
-import "./setup.js";  // PropertiesService 等のスタブを有効化
+import "./setup.js"; // PropertiesService 等のスタブを有効化
 ```
 
 ## ai 側のモック

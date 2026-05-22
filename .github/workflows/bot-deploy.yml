@@ -1,0 +1,50 @@
+name: Deploy bot to GAS
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "デプロイ対象の Git ref (ブランチ / タグ / SHA)"
+        required: false
+        type: string
+        default: master
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Build & clasp push
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.2.2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build bot
+        run: pnpm --filter bot build
+
+      - name: Restore clasp credentials
+        run: |
+          mkdir -p ~/.config/google-clasp
+          printf '%s' "${{ secrets.CLASPRC_JSON }}" > ~/.clasprc.json
+          chmod 600 ~/.clasprc.json
+
+      - name: Verify clasp authentication
+        run: cd bot && pnpm clasp status
+
+      - name: clasp push
+        run: cd bot && pnpm clasp push --force

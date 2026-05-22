@@ -41,7 +41,8 @@ vi.stubGlobal("UrlFetchApp", {
 });
 
 vi.stubGlobal("Utilities", {
-  base64Encode: (input: string) => Buffer.from(input, "utf-8").toString("base64"),
+  base64Encode: (input: string) =>
+    Buffer.from(input, "utf-8").toString("base64"),
   Charset: { UTF_8: "utf-8" },
 });
 

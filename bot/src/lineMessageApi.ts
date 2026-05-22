@@ -1,7 +1,11 @@
 import { getBotId, getChannelAccessToken } from "./config.js";
 import { generateReply } from "./controller.js";
 import { mentionPhraseList } from "./constants.js";
-import type { LineEvent, LineReplyMessage, LineWebhookBody } from "./types/line.js";
+import type {
+  LineEvent,
+  LineReplyMessage,
+  LineWebhookBody,
+} from "./types/line.js";
 
 const LINE_REPLY_URL = "https://api.line.me/v2/bot/message/reply";
 
@@ -20,7 +24,9 @@ export interface MentionResolution {
  */
 export function isBotMentioned(event: LineEvent): MentionResolution {
   const text =
-    event.message && "text" in event.message && typeof event.message.text === "string"
+    event.message &&
+    "text" in event.message &&
+    typeof event.message.text === "string"
       ? event.message.text
       : "";
 
@@ -32,7 +38,7 @@ export function isBotMentioned(event: LineEvent): MentionResolution {
   const botId = getBotId();
   const mentionees =
     event.message && "mention" in event.message && event.message.mention
-      ? event.message.mention.mentionees ?? []
+      ? (event.message.mention.mentionees ?? [])
       : [];
   const mentionedByApi = mentionees.some(
     (m) => m.type === "user" && m.userId === botId,

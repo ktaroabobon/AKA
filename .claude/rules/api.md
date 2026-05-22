@@ -27,9 +27,9 @@ OpenAPI で `ErrorResponse` として定義済み：
 
 ```ts
 type ErrorResponse = {
-  error: string;            // invalid_request / invalid_api_key / genai_failed / internal_error
-  message?: string;         // 補足
-  detail?: unknown;         // バリデーションエラーなど
+  error: string; // invalid_request / invalid_api_key / genai_failed / internal_error
+  message?: string; // 補足
+  detail?: unknown; // バリデーションエラーなど
 };
 ```
 

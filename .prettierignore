@@ -1,0 +1,5 @@
+node_modules/
+**/dist/
+pnpm-lock.yaml
+ai/src/api/generated.ts
+bot/src/api/generated.ts

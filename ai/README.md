@@ -4,10 +4,10 @@ AKA の LLM 応答バックエンド。Hono を Node.js ランタイムで動か
 
 ## エンドポイント
 
-| Method | Path | 説明 |
-|---|---|---|
-| GET | `/health` | ヘルスチェック |
-| POST | `/chat/genai` | Gemini を使って応答生成 |
+| Method | Path          | 説明                    |
+| ------ | ------------- | ----------------------- |
+| GET    | `/health`     | ヘルスチェック          |
+| POST   | `/chat/genai` | Gemini を使って応答生成 |
 
 リクエスト／レスポンスの詳細は `src/schemas/chat.ts` の zod スキーマを参照。
 

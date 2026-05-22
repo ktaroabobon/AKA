@@ -6,8 +6,13 @@ steps:
       - "ai/Dockerfile"
       - "-t"
       - "asia.gcr.io/$PROJECT_ID/aka-ai-api-service-image:latest"
+      - "-t"
+      - "asia.gcr.io/$PROJECT_ID/aka-ai-api-service-image:${_IMAGE_TAG}"
       - "."
 images:
   - "asia.gcr.io/$PROJECT_ID/aka-ai-api-service-image:latest"
+  - "asia.gcr.io/$PROJECT_ID/aka-ai-api-service-image:${_IMAGE_TAG}"
+substitutions:
+  _IMAGE_TAG: manual
 options:
   machineType: E2_HIGHCPU_8

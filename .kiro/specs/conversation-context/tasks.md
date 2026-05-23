@@ -210,7 +210,7 @@
 ---
 
 - [ ] 8. 統合検証
-- [ ] 8.1 全 quality check を通す
+- [x] 8.1 全 quality check を通す
   - リポルートで `make lint` (= `pnpm lint`)、`make typecheck` (= `pnpm -r typecheck`)、`pnpm --filter bot test`、`pnpm --filter ai test`、`make oapi/check-gen` を順に実行
   - すべて exit 0 で pass する
   - _Requirements: 7.3, 全 spec の回帰確認_

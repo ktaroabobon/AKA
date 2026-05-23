@@ -6,7 +6,7 @@
   "description": "AKA AI backend (Hono on Cloud Run)",
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json && mkdir -p dist/prompts && cp src/prompts/*.md dist/prompts/",
     "start": "node dist/index.js",
     "test": "vitest run",
     "test:watch": "vitest",

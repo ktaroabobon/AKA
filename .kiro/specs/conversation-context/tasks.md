@@ -17,7 +17,7 @@
   - `ls ai/vendor/inappropriate-words-ja/` で 4 ファイル (Sexual.txt / Offensive.txt / LICENSE / COMMIT) が存在する
   - _Requirements: 5.2_
 
-- [ ] 1.3 ローカル開発ドキュメントを新規作成する
+- [x] 1.3 ローカル開発ドキュメントを新規作成する
   - `docs/local-dev.md` を作り、`gcloud auth application-default login` での ADC 取得手順、`make ai/dev` で production Firestore に直接接続する旨、必要な GCP プロジェクト権限 (`roles/datastore.viewer` 以上) を記載
   - Firestore Emulator は採用しないことと、その理由 (個人プロジェクト規模) を明記
   - `docs/local-dev.md` ファイルが存在し、上記節がすべて含まれる

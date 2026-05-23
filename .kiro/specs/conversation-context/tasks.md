@@ -156,7 +156,7 @@
 ---
 
 - [ ] 6. bot 側: sessionKey 組立と AI 連携
-- [ ] 6.1 (P) sessionKey builder を実装する
+- [x] 6.1 (P) sessionKey builder を実装する
   - `bot/src/lib/sessionKey.ts` を新設し `buildSessionKey(source: LineEventSource): string | null` を実装
   - `source.type === "group"` → `group:{groupId}`、`"room"` → `room:{roomId}`、`"user"` → `user:{userId}`、対応 ID 欠落 / 未対応 type は `null`
   - `bot/__tests__/sessionKey.test.ts` で 4 ケース (各 type + null) を pass

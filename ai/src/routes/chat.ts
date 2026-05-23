@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
+import { z } from "zod";
 import { chatRequestSchema } from "../schemas/chat.js";
 import { ApiKeyDecodeError } from "../lib/decode.js";
 import {
@@ -39,7 +40,7 @@ export function createChatRoute({
     zValidator("json", chatRequestSchema, (result, c) => {
       if (!result.success) {
         return c.json(
-          { error: "invalid_request", detail: result.error.flatten() },
+          { error: "invalid_request", detail: z.flattenError(result.error) },
           400,
         );
       }

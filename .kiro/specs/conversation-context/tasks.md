@@ -202,7 +202,7 @@
   - GitHub の Actions タブで `Deploy AKA` が dispatch でき、bot → ai 順に直列実行され、smoke check が成功すれば green
   - _Requirements: 9.1, 9.2, 9.3, 9.4, 9.6, 9.7_
 
-- [ ] 7.2 既存個別 workflow を削除する
+- [x] 7.2 既存個別 workflow を削除する
   - `.github/workflows/ai-deploy.yml` と `.github/workflows/bot-deploy.yml` を削除
   - リポジトリの Actions タブから旧 workflow が消え、`Deploy AKA` のみが残る
   - _Requirements: 9.5_

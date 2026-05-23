@@ -82,7 +82,7 @@
 ---
 
 - [ ] 4. ai サービス層: Moderation / Session / Genai
-- [ ] 4.1 (P) ModerationService を実装する
+- [x] 4.1 (P) ModerationService を実装する
   - `ai/src/services/moderation.ts` に `mask(text): { masked, redactionCount: { pii, profanity } }` の純関数を実装
   - NFKC 正規化、電話番号 (携帯 / 固定)、メール、クレジットカード (Luhn)、マイナンバー、郵便番号の PII 正規表現と、`ai/vendor/inappropriate-words-ja/` から読んだ Trie マッチを順次適用
   - `ai/__tests__/moderation.test.ts` で「全角 PII が正規化されて伏字化」「Luhn 合格カードのみ伏字化」「NG 辞書語が `***` に置換」「`redactionCount` が正しい」の各ケースを pass

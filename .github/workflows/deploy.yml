@@ -1,0 +1,130 @@
+name: Deploy AKA
+
+# 統合 CD workflow: bot (GAS) を先にデプロイし、成功時のみ ai (Cloud Run)
+# をデプロイする。conversation-context spec (Req 9.1〜9.7) で導入。
+#
+# 事前セットアップ (WIF SA / GitHub Secrets / Firestore TTL 等) は
+# docs/deploy-setup.md を参照。
+# - bot ジョブ: secrets.CLASPRC_JSON
+# - ai ジョブ: secrets.GCP_WIF_PROVIDER, secrets.GCP_SERVICE_ACCOUNT
+#   - SA に必要なロール:
+#     - roles/cloudbuild.builds.editor
+#     - roles/run.admin
+#     - roles/iam.serviceAccountUser
+#     - roles/storage.admin
+#     - roles/artifactregistry.reader
+#     - roles/datastore.user  (Firestore conversation collection への RW)
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "デプロイ対象の Git ref (ブランチ / タグ / SHA)"
+        required: false
+        type: string
+        default: master
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  GCP_PROJECT_ID: aka-ai-api
+  GCP_REGION: asia-northeast1
+  SERVICE_NAME: aka-ai-api-service
+  IMAGE: asia.gcr.io/aka-ai-api/aka-ai-api-service-image
+  GEMINI_MODEL: gemini-3.5-flash
+
+jobs:
+  bot:
+    name: bot → clasp push (GAS)
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.2.2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build bot
+        run: pnpm --filter bot build
+
+      # Secret を env 経由で渡すことで、shell 展開の段数を減らし、
+      # JSON 内の改行 / クォート / バックスラッシュで credentials が
+      # 壊れないようにする。
+      - name: Restore clasp credentials
+        env:
+          CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
+        run: |
+          printf '%s' "$CLASPRC_JSON" > ~/.clasprc.json
+          chmod 600 ~/.clasprc.json
+          test -s ~/.clasprc.json || { echo "::error::~/.clasprc.json is empty"; exit 1; }
+          head -c 1 ~/.clasprc.json | od -c | head -1
+
+      - name: Verify clasp authentication
+        run: cd bot && pnpm clasp login --status
+
+      - name: clasp push
+        run: cd bot && pnpm clasp push --force
+
+  ai:
+    name: ai → Cloud Run
+    needs: bot
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Authenticate to Google Cloud (Workload Identity Federation)
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ env.GCP_PROJECT_ID }}
+
+      - name: Resolve image tag (commit SHA)
+        id: tag
+        run: echo "value=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Build & push image (Cloud Build)
+        run: |
+          gcloud builds submit \
+            --config cloudbuild.yaml \
+            --substitutions=_IMAGE_TAG=${{ steps.tag.outputs.value }} \
+            .
+
+      - name: Deploy to Cloud Run
+        run: |
+          gcloud run deploy ${{ env.SERVICE_NAME }} \
+            --image ${{ env.IMAGE }}:latest \
+            --region ${{ env.GCP_REGION }} \
+            --allow-unauthenticated \
+            --set-env-vars NODE_ENV=production,GEMINI_MODEL=${{ env.GEMINI_MODEL }},GCP_PROJECT_ID=${{ env.GCP_PROJECT_ID }}
+
+      - name: Smoke test (/health)
+        run: |
+          URL=$(gcloud run services describe ${{ env.SERVICE_NAME }} \
+            --region ${{ env.GCP_REGION }} \
+            --format='value(status.url)')
+          echo "Service URL: $URL"
+          # HTTP code が 2xx でなければ workflow を失敗で終了する (Req 9.4)
+          # 自動 rollback はしない (Req 9.7)、docs/deploy-setup.md の手順で手動対応
+          curl -fsS "$URL/health"

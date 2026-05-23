@@ -193,7 +193,7 @@
 ---
 
 - [ ] 7. 統合 CD workflow
-- [ ] 7.1 単一 deploy workflow を新設する
+- [x] 7.1 単一 deploy workflow を新設する
   - `.github/workflows/deploy.yml` を新規作成し、`on: workflow_dispatch` (input: `ref` デフォルト master) を設定
   - jobs:
     - `bot`: 既存 `bot-deploy.yml` 相当 (checkout / pnpm setup / clasp credentials 復元 / `pnpm --filter bot build` / `clasp push --force`)

@@ -209,13 +209,13 @@
 
 ---
 
-- [ ] 8. 統合検証
+- [x] 8. 統合検証
 - [x] 8.1 全 quality check を通す
   - リポルートで `make lint` (= `pnpm lint`)、`make typecheck` (= `pnpm -r typecheck`)、`pnpm --filter bot test`、`pnpm --filter ai test`、`make oapi/check-gen` を順に実行
   - すべて exit 0 で pass する
   - _Requirements: 7.3, 全 spec の回帰確認_
 
-- [ ] 8.2 ローカル smoke check
+- [x] 8.2 ローカル smoke check
   - `gcloud auth application-default login` 済みの環境で `make ai/dev` を起動
   - `curl -s http://localhost:8080/health` が 200 を返す
   - `curl -s -X POST http://localhost:8080/chat/genai -H 'content-type: application/json' -d '{"sessionKey":"user:test","prompt":"おはよう","encrypted_api_key":"..."}'` が 200 で `reply` を含む JSON を返す

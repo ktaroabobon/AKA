@@ -34,6 +34,10 @@ env:
   SERVICE_NAME: aka-ai-api-service
   IMAGE: asia.gcr.io/aka-ai-api/aka-ai-api-service-image
   GEMINI_MODEL: gemini-3.5-flash
+  # Cloud Run コンテナが ADC として使うランタイム SA。
+  # Firestore (`conversation` collection) への RW のため `roles/datastore.user`
+  # を付与してある必要がある。詳細は docs/deploy-setup.md。
+  RUNTIME_SA: aka-ai-api-sa@aka-ai-api.iam.gserviceaccount.com
 
 jobs:
   bot:
@@ -116,6 +120,7 @@ jobs:
           gcloud run deploy ${{ env.SERVICE_NAME }} \
             --image ${{ env.IMAGE }}:latest \
             --region ${{ env.GCP_REGION }} \
+            --service-account ${{ env.RUNTIME_SA }} \
             --allow-unauthenticated \
             --set-env-vars NODE_ENV=production,GEMINI_MODEL=${{ env.GEMINI_MODEL }},GCP_PROJECT_ID=${{ env.GCP_PROJECT_ID }}
 

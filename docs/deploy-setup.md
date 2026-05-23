@@ -12,36 +12,60 @@
 
 ## 1. GCP: WIF + デプロイ用 Service Account
 
+AKA は 2 種類の SA を使い分ける。
+
+| SA                        | 役割                                                                                            | 必要ロール                                                                                                                                  |
+| ------------------------- | ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `github-actions-deployer` | GitHub Actions が WIF 経由で impersonate するデプロイ SA。Cloud Build / Cloud Run deploy を回す | `roles/cloudbuild.builds.editor`, `roles/run.admin`, `roles/iam.serviceAccountUser`, `roles/storage.admin`, `roles/artifactregistry.reader` |
+| `aka-ai-api-sa`           | Cloud Run の **ランタイム SA**。コンテナ実行時の ADC として Firestore / Gemini API に到達する   | `roles/datastore.user`                                                                                                                      |
+
+ランタイム SA に Firestore 権限が無いと `/chat/genai` が `SessionStoreError` で 500
+を返す ([fix #49](https://github.com/ktaroabobon/AKA/pull/49) の不具合事例)。
+**デプロイ SA に `roles/datastore.user` を付与しても効かない**点に注意。
+
 ```bash
 PROJECT_ID=aka-ai-api
 PROJECT_NUMBER=$(gcloud projects describe "$PROJECT_ID" --format='value(projectNumber)')
 SA_NAME=github-actions-deployer
 SA_EMAIL="${SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
+RUNTIME_SA_NAME=aka-ai-api-sa
+RUNTIME_SA_EMAIL="${RUNTIME_SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
 POOL_ID=github-pool
 PROVIDER_ID=github-provider
 GITHUB_REPO=ktaroabobon/AKA
 
-# 1) Service Account を作成
+# 1) デプロイ SA を作成
 gcloud iam service-accounts create "$SA_NAME" \
   --display-name="GitHub Actions deployer for AKA"
 
-# 2) SA にプロジェクトレベルのロールを付与
+# 2) デプロイ SA にプロジェクトレベルのロールを付与
 #    artifactregistry.reader は gcr.io が Artifact Registry に
 #    バックエンド移行されているため Cloud Run deploy の pre-check で必須。
-#    datastore.user は ai サービスが Firestore の conversation collection に
-#    読み書きするために必要 (Cloud Run の実行 SA に ADC 経由で付与される)。
 for role in \
   roles/cloudbuild.builds.editor \
   roles/run.admin \
   roles/iam.serviceAccountUser \
   roles/storage.admin \
   roles/artifactregistry.reader \
-  roles/datastore.user \
 ; do
   gcloud projects add-iam-policy-binding "$PROJECT_ID" \
     --member="serviceAccount:${SA_EMAIL}" \
     --role="$role"
 done
+
+# 2.5) ランタイム SA を作成し、Firestore アクセス権限を付与
+gcloud iam service-accounts create "$RUNTIME_SA_NAME" \
+  --display-name="AKA AI Cloud Run runtime"
+
+gcloud projects add-iam-policy-binding "$PROJECT_ID" \
+  --member="serviceAccount:${RUNTIME_SA_EMAIL}" \
+  --role="roles/datastore.user"
+
+# デプロイ SA がランタイム SA を act-as できるようにする
+# (deploy.yml の `--service-account` 指定に必要)
+gcloud iam service-accounts add-iam-policy-binding "$RUNTIME_SA_EMAIL" \
+  --role="roles/iam.serviceAccountUser" \
+  --member="serviceAccount:${SA_EMAIL}"
 
 # 3) Workload Identity Pool を作成
 gcloud iam workload-identity-pools create "$POOL_ID" \
@@ -73,32 +97,31 @@ gcloud projects add-iam-policy-binding aka-ai-api \
   --role="roles/artifactregistry.reader"
 ```
 
-### すでに WIF をセットアップ済みで datastore.user だけ追加する場合
+### すでにランタイム SA を作成済みで datastore.user だけ追加する場合
 
 ```bash
 gcloud projects add-iam-policy-binding aka-ai-api \
-  --member="serviceAccount:github-actions-deployer@aka-ai-api.iam.gserviceaccount.com" \
+  --member="serviceAccount:aka-ai-api-sa@aka-ai-api.iam.gserviceaccount.com" \
   --role="roles/datastore.user"
 ```
 
-### SA に付与されているロールの確認
+### 各 SA に付与されているロールの確認
 
 ```bash
+# デプロイ SA
 gcloud projects get-iam-policy aka-ai-api \
   --flatten='bindings[].members' \
   --filter='bindings.members:github-actions-deployer@aka-ai-api.iam.gserviceaccount.com' \
   --format='value(bindings.role)'
-```
+# → roles/artifactregistry.reader / cloudbuild.builds.editor /
+#   iam.serviceAccountUser / run.admin / storage.admin
 
-期待する出力:
-
-```
-roles/artifactregistry.reader
-roles/cloudbuild.builds.editor
-roles/datastore.user
-roles/iam.serviceAccountUser
-roles/run.admin
-roles/storage.admin
+# ランタイム SA
+gcloud projects get-iam-policy aka-ai-api \
+  --flatten='bindings[].members' \
+  --filter='bindings.members:aka-ai-api-sa@aka-ai-api.iam.gserviceaccount.com' \
+  --format='value(bindings.role)'
+# → roles/datastore.user
 ```
 
 ---

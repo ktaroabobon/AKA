@@ -47,7 +47,7 @@
 ---
 
 - [ ] 3. ai 共通 lib 層と prompts 拡張
-- [ ] 3.1 Firestore 環境変数を追加する
+- [x] 3.1 Firestore 環境変数を追加する
   - `ai/src/config/env.ts` の zod スキーマに `GCP_PROJECT_ID` (string, min 1) を必須追加
   - 必要に応じて `FIRESTORE_DATABASE_ID` (省略時 `(default)`) も optional で追加
   - `pnpm --filter ai typecheck` が pass し、起動時に新規 env がバリデーションされる

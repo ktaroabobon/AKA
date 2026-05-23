@@ -9,6 +9,8 @@ const envSchema = z.object({
   NODE_ENV: z
     .enum(["development", "production", "test"])
     .default("development"),
+  GCP_PROJECT_ID: z.string().min(1),
+  FIRESTORE_DATABASE_ID: z.string().min(1).default("(default)"),
 });
 
 export type Env = z.infer<typeof envSchema>;

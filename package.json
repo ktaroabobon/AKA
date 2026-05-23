@@ -15,7 +15,7 @@
     "gen:types": "openapi-typescript openapi/aka.openapi.yaml -o ai/src/api/generated.ts && openapi-typescript openapi/aka.openapi.yaml -o bot/src/api/generated.ts"
   },
   "devDependencies": {
-    "@google/clasp": "^2.5.0",
+    "@google/clasp": "^3.3.0",
     "@types/google-apps-script": "^2.0.9",
     "@types/node": "^25.9.1",
     "@typescript-eslint/eslint-plugin": "^8.18.0",

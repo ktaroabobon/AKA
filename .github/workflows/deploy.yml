@@ -45,7 +45,7 @@ jobs:
         with:
           ref: ${{ inputs.ref }}
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with:
           version: 11.2.2
 

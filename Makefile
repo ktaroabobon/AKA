@@ -1,12 +1,13 @@
 SHELL := /bin/bash
 MAKEFLAGS += --no-print-directory
 
-.PHONY: help install build deploy console ai/dev ai/build ai/test lint format typecheck oapi/types oapi/check-gen
+.PHONY: help install cp build deploy console ai/dev ai/build ai/test lint format typecheck oapi/types oapi/check-gen
 
 help:
 	@echo "AKA monorepo — make targets"
 	@echo ""
 	@echo "  install         Install all workspace dependencies (pnpm install)"
+	@echo "  cp              Copy ai/.env.sample to ai/.env (skipped if .env exists)"
 	@echo ""
 	@echo "  bot (GAS)"
 	@echo "    build         Build bot for GAS (bundles src/main.ts via build.ts)"
@@ -29,6 +30,15 @@ help:
 
 install:
 	pnpm install
+
+cp:
+	@if [ -f ai/.env ]; then \
+		echo "ai/.env already exists. Edit it or remove it before re-copying."; \
+	else \
+		cp ai/.env.sample ai/.env; \
+		echo "ai/.env を ai/.env.sample から作成しました。"; \
+		echo "GCP_PROJECT_ID と GEMINI_API_KEY を実値に書き換えてください。"; \
+	fi
 
 # ---------------- bot (GAS) ----------------
 

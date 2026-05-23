@@ -8,10 +8,12 @@ type ChatResponse = components["schemas"]["ChatResponse"];
  * AKA-AI の /chat/genai を叩いて応答テキストを取得する。
  * - GAS の UrlFetchApp を使う（fetch は GAS にないため）
  * - Script Properties から API キーを取得し base64 化してリクエストに含める
+ * - sessionKey は controller 側で `buildSessionKey` から得る (空文字 / null は controller が AI 呼出をスキップする想定)
  * - 失敗時は null を返す（呼び出し元でフォールバック）
  */
-export function chatWithAi(prompt: string): string | null {
+export function chatWithAi(prompt: string, sessionKey: string): string | null {
   if (!prompt || prompt.trim().length === 0) return null;
+  if (!sessionKey || sessionKey.length === 0) return null;
 
   const url = `${getAiBaseUrl().replace(/\/$/, "")}/chat/genai`;
   const encryptedApiKey = Utilities.base64Encode(
@@ -20,6 +22,7 @@ export function chatWithAi(prompt: string): string | null {
   );
 
   const body: ChatRequest = {
+    sessionKey,
     prompt,
     encrypted_api_key: encryptedApiKey,
   };

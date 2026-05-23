@@ -5,10 +5,12 @@ const envSchema = z.object({
   LOG_LEVEL: z
     .enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"])
     .default("info"),
-  GEMINI_MODEL: z.string().min(1).default("gemini-2.0-flash-001"),
+  GEMINI_MODEL: z.string().min(1).default("gemini-3.5-flash"),
   NODE_ENV: z
     .enum(["development", "production", "test"])
     .default("development"),
+  GCP_PROJECT_ID: z.string().min(1),
+  FIRESTORE_DATABASE_ID: z.string().min(1).default("(default)"),
 });
 
 export type Env = z.infer<typeof envSchema>;

@@ -22,7 +22,7 @@ describe("chatWithAi", () => {
   it("posts to <AI_BASE_URL>/chat/genai with base64-encoded key", () => {
     fetchMock.mockReturnValue(fakeResponse(200, { reply: "あかだよ〜" }));
 
-    const result = chatWithAi("おはよう");
+    const result = chatWithAi("おはよう", "user:U123");
 
     expect(result).toBe("あかだよ〜");
     expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -35,6 +35,7 @@ describe("chatWithAi", () => {
     });
     const body = JSON.parse(options.payload as string);
     expect(body.prompt).toBe("おはよう");
+    expect(body.sessionKey).toBe("user:U123");
     const expectedEncoded = Buffer.from(
       TestConstants.GEMINI_API_KEY,
       "utf-8",
@@ -43,30 +44,36 @@ describe("chatWithAi", () => {
   });
 
   it("returns null for empty prompt without calling fetch", () => {
-    const result = chatWithAi("   ");
+    const result = chatWithAi("   ", "user:U123");
+    expect(result).toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("returns null when sessionKey is empty without calling fetch", () => {
+    const result = chatWithAi("hi", "");
     expect(result).toBeNull();
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("returns null on non-200 response", () => {
     fetchMock.mockReturnValue(fakeResponse(502, { error: "genai_failed" }));
-    expect(chatWithAi("hi")).toBeNull();
+    expect(chatWithAi("hi", "user:U123")).toBeNull();
   });
 
   it("returns null when reply is empty string", () => {
     fetchMock.mockReturnValue(fakeResponse(200, { reply: "" }));
-    expect(chatWithAi("hi")).toBeNull();
+    expect(chatWithAi("hi", "user:U123")).toBeNull();
   });
 
   it("returns null on malformed JSON", () => {
     fetchMock.mockReturnValue(fakeResponse(200, "<<not json>>"));
-    expect(chatWithAi("hi")).toBeNull();
+    expect(chatWithAi("hi", "user:U123")).toBeNull();
   });
 
   it("returns null on UrlFetchApp throw", () => {
     fetchMock.mockImplementation(() => {
       throw new Error("network down");
     });
-    expect(chatWithAi("hi")).toBeNull();
+    expect(chatWithAi("hi", "user:U123")).toBeNull();
   });
 });

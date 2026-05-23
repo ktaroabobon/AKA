@@ -3,3 +3,8 @@ node_modules/
 pnpm-lock.yaml
 ai/src/api/generated.ts
 bot/src/api/generated.ts
+
+# dotenv files have no Prettier parser
+*.env
+.env*
+

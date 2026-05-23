@@ -2,12 +2,16 @@ import { Hono } from "hono";
 import { createHealthRoute } from "./routes/health.js";
 import { createChatRoute } from "./routes/chat.js";
 import { createGenaiService } from "./services/genai.js";
+import { createSessionService } from "./services/session.js";
+import { mask } from "./services/moderation.js";
+import { getFirestore } from "./lib/firestore.js";
 import { createLogger } from "./lib/logger.js";
 import type { Env } from "./config/env.js";
 
 export function createApp(env: Env) {
   const logger = createLogger(env);
   const genaiService = createGenaiService(env);
+  const sessionService = createSessionService(getFirestore());
 
   const app = new Hono();
 
@@ -31,7 +35,15 @@ export function createApp(env: Env) {
   });
 
   app.route("/", createHealthRoute());
-  app.route("/", createChatRoute({ genaiService, logger }));
+  app.route(
+    "/",
+    createChatRoute({
+      moderation: mask,
+      sessionService,
+      genaiService,
+      logger,
+    }),
+  );
 
   return { app, logger };
 }

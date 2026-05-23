@@ -130,7 +130,7 @@
   - `pnpm --filter ai typecheck` が pass
   - _Requirements: 7.4, 7.5_
 
-- [ ] 5.2 chat ルートを orchestration に書き換える
+- [x] 5.2 chat ルートを orchestration に書き換える
   - `ai/src/routes/chat.ts` を以下の順に再構成:
     1. `moderation.mask(prompt)` でユーザー発話マスク
     2. `session.getRecent(sessionKey, now)` で履歴取得

@@ -111,7 +111,7 @@
   - _Requirements: 2.2, 2.3, 2.4, 3.1, 3.2, 8.3_
   - _Depends: 4.2_
 
-- [ ] 4.4 (P) GenaiService を chats API に書き換える
+- [x] 4.4 (P) GenaiService を chats API に書き換える
   - `ai/src/services/genai.ts` を `ai.chats.create({ model, config: { systemInstruction, safetySettings }, history })` + `chat.sendMessage` 形式に refactor
   - `safetySettings` を 4 カテゴリ (`HARASSMENT` / `HATE_SPEECH` / `SEXUALLY_EXPLICIT` / `DANGEROUS_CONTENT`) すべて `BLOCK_MEDIUM_AND_ABOVE` に設定
   - `finishReason === SAFETY` または空 candidates の場合は `GenaiSafetyBlockedError` (新クラス、`GenaiServiceError` を継承) を投げる
@@ -229,3 +229,4 @@
 
 - 新規 / 編集した `.md` ファイルは必ず `pnpm exec prettier --write <path>` を実行してから提出すること。Prettier 整形漏れは CI / レビューで弾かれる (task 1.3 の reject 事例)。
 - task 2.1+2.2 のコミット直後は **bot typecheck が一時的に壊れる** (aiClient が sessionKey を渡していないため)。これは task 6.2 で解消する想定。中間状態なので task 8.1 の quality check は最後に回す。
+- task 4.4 の段階で `ai/__tests__/chat.test.ts` 4 ケースを `describe.skip` で一時無効化、`ai/src/routes/chat.ts` には `history: []` を渡す **minimal shim** が入っている。**task 5.2 で routes/chat.ts を正式 orchestration に書き換え、task 5.3 で chat.test.ts を 5 ケースの新仕様で書き直す**こと。skip は task 5.3 で復元 (skip を外す) する。

@@ -26,7 +26,14 @@ export function createChatRoute({ genaiService, logger }: ChatRouteDeps) {
     async (c) => {
       const request = c.req.valid("json");
       try {
-        const reply = await genaiService.chat(request);
+        // NOTE: task 4.4 で GenaiService が `generate(input)` API に書き換わったため
+        // ここも一時的にアダプトしている。task 5.2 で本格的に orchestration
+        // (moderation / session / sessionKey) を組み込む形に置き換える。
+        const reply = await genaiService.generate({
+          history: [],
+          userText: request.prompt,
+          encryptedApiKey: request.encrypted_api_key,
+        });
         return c.json({ reply });
       } catch (err) {
         if (err instanceof ApiKeyDecodeError) {

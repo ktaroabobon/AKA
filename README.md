@@ -37,11 +37,34 @@ make console     # bot/.clasp.json の scriptId から GAS エディタを開く
 
 ### AI (Hono on Cloud Run)
 
+ローカル起動の初回準備:
+
 ```bash
-make ai/dev      # ローカル開発サーバ
+# 1) ai/.env を作る (skipped if exists)
+make cp
+
+# 2) ai/.env を編集して実値を入れる
+#    - GCP_PROJECT_ID: Firestore conversation を置く GCP project
+#    - GEMINI_API_KEY: curl テスト時に使う Gemini API キー (ai サーバ自身は読まない)
+$EDITOR ai/.env
+
+# 3) Firestore へ接続するため ADC を取得
+gcloud auth application-default login
+```
+
+詳細な前提 (必要な IAM ロール、Firestore Native DB / TTL policy の作成手順) は
+[`docs/local-dev.md`](docs/local-dev.md) と [`docs/deploy-setup.md`](docs/deploy-setup.md) を参照。
+
+開発コマンド:
+
+```bash
+make ai/dev      # ローカル開発サーバ (ai/.env を dotenv で読む)
 make ai/build    # ビルド
 make ai/test     # vitest
 ```
+
+`curl` で `/chat/genai` を叩く具体的な手順 (sessionKey / base64 encoded key) は
+[`docs/local-dev.md`](docs/local-dev.md) に集約済み。
 
 ### 品質チェック
 

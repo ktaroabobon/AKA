@@ -11,7 +11,7 @@
   - `pnpm install` が exit 0、`pnpm -r typecheck` が pass する
   - _Requirements: 2.1, 2.2, 3.1, 8.3_
 
-- [ ] 1.2 NG ワード辞書を vendor 取込する
+- [x] 1.2 NG ワード辞書を vendor 取込する
   - `MosasoM/inappropriate-words-ja` (MIT, SHA `e24de6e`) の `Sexual.txt` / `Offensive.txt` / `LICENSE` を `ai/vendor/inappropriate-words-ja/` 配下にコピー
   - 同ディレクトリに `COMMIT` ファイルを作り SHA `e24de6e` を 1 行記録
   - `ls ai/vendor/inappropriate-words-ja/` で 4 ファイル (Sexual.txt / Offensive.txt / LICENSE / COMMIT) が存在する

@@ -12,36 +12,60 @@
 
 ## 1. GCP: WIF + デプロイ用 Service Account
 
+AKA は 2 種類の SA を使い分ける。
+
+| SA                        | 役割                                                                                            | 必要ロール                                                                                                                                  |
+| ------------------------- | ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `github-actions-deployer` | GitHub Actions が WIF 経由で impersonate するデプロイ SA。Cloud Build / Cloud Run deploy を回す | `roles/cloudbuild.builds.editor`, `roles/run.admin`, `roles/iam.serviceAccountUser`, `roles/storage.admin`, `roles/artifactregistry.reader` |
+| `aka-ai-api-sa`           | Cloud Run の **ランタイム SA**。コンテナ実行時の ADC として Firestore / Gemini API に到達する   | `roles/datastore.user`                                                                                                                      |
+
+ランタイム SA に Firestore 権限が無いと `/chat/genai` が `SessionStoreError` で 500
+を返す ([fix #49](https://github.com/ktaroabobon/AKA/pull/49) の不具合事例)。
+**デプロイ SA に `roles/datastore.user` を付与しても効かない**点に注意。
+
 ```bash
 PROJECT_ID=aka-ai-api
 PROJECT_NUMBER=$(gcloud projects describe "$PROJECT_ID" --format='value(projectNumber)')
 SA_NAME=github-actions-deployer
 SA_EMAIL="${SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
+RUNTIME_SA_NAME=aka-ai-api-sa
+RUNTIME_SA_EMAIL="${RUNTIME_SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
 POOL_ID=github-pool
 PROVIDER_ID=github-provider
 GITHUB_REPO=ktaroabobon/AKA
 
-# 1) Service Account を作成
+# 1) デプロイ SA を作成
 gcloud iam service-accounts create "$SA_NAME" \
   --display-name="GitHub Actions deployer for AKA"
 
-# 2) SA にプロジェクトレベルのロールを付与
+# 2) デプロイ SA にプロジェクトレベルのロールを付与
 #    artifactregistry.reader は gcr.io が Artifact Registry に
 #    バックエンド移行されているため Cloud Run deploy の pre-check で必須。
-#    datastore.user は ai サービスが Firestore の conversation collection に
-#    読み書きするために必要 (Cloud Run の実行 SA に ADC 経由で付与される)。
 for role in \
   roles/cloudbuild.builds.editor \
   roles/run.admin \
   roles/iam.serviceAccountUser \
   roles/storage.admin \
   roles/artifactregistry.reader \
-  roles/datastore.user \
 ; do
   gcloud projects add-iam-policy-binding "$PROJECT_ID" \
     --member="serviceAccount:${SA_EMAIL}" \
     --role="$role"
 done
+
+# 2.5) ランタイム SA を作成し、Firestore アクセス権限を付与
+gcloud iam service-accounts create "$RUNTIME_SA_NAME" \
+  --display-name="AKA AI Cloud Run runtime"
+
+gcloud projects add-iam-policy-binding "$PROJECT_ID" \
+  --member="serviceAccount:${RUNTIME_SA_EMAIL}" \
+  --role="roles/datastore.user"
+
+# デプロイ SA がランタイム SA を act-as できるようにする
+# (deploy.yml の `--service-account` 指定に必要)
+gcloud iam service-accounts add-iam-policy-binding "$RUNTIME_SA_EMAIL" \
+  --role="roles/iam.serviceAccountUser" \
+  --member="serviceAccount:${SA_EMAIL}"
 
 # 3) Workload Identity Pool を作成
 gcloud iam workload-identity-pools create "$POOL_ID" \
@@ -73,32 +97,31 @@ gcloud projects add-iam-policy-binding aka-ai-api \
   --role="roles/artifactregistry.reader"
 ```
 
-### すでに WIF をセットアップ済みで datastore.user だけ追加する場合
+### すでにランタイム SA を作成済みで datastore.user だけ追加する場合
 
 ```bash
 gcloud projects add-iam-policy-binding aka-ai-api \
-  --member="serviceAccount:github-actions-deployer@aka-ai-api.iam.gserviceaccount.com" \
+  --member="serviceAccount:aka-ai-api-sa@aka-ai-api.iam.gserviceaccount.com" \
   --role="roles/datastore.user"
 ```
 
-### SA に付与されているロールの確認
+### 各 SA に付与されているロールの確認
 
 ```bash
+# デプロイ SA
 gcloud projects get-iam-policy aka-ai-api \
   --flatten='bindings[].members' \
   --filter='bindings.members:github-actions-deployer@aka-ai-api.iam.gserviceaccount.com' \
   --format='value(bindings.role)'
-```
+# → roles/artifactregistry.reader / cloudbuild.builds.editor /
+#   iam.serviceAccountUser / run.admin / storage.admin
 
-期待する出力:
-
-```
-roles/artifactregistry.reader
-roles/cloudbuild.builds.editor
-roles/datastore.user
-roles/iam.serviceAccountUser
-roles/run.admin
-roles/storage.admin
+# ランタイム SA
+gcloud projects get-iam-policy aka-ai-api \
+  --flatten='bindings[].members' \
+  --filter='bindings.members:aka-ai-api-sa@aka-ai-api.iam.gserviceaccount.com' \
+  --format='value(bindings.role)'
+# → roles/datastore.user
 ```
 
 ---
@@ -238,3 +261,77 @@ gcloud run services update-traffic aka-ai-api-service \
 
 > rollback 後、失敗 revision の原因 (Cloud Run ログ / Firestore 権限 / env 変数等)
 > を別途調査・修正してから `Deploy AKA` を再実行する。
+
+### IAM 変更後に Cloud Run instance を強制リサイクル
+
+ランタイム SA に新しいロールを付与した直後は、**既存 instance が古い ADC
+トークンをキャッシュしたまま**生き残り、しばらくは古い権限で動くため
+`PERMISSION_DENIED` が混ざることがある (本 spec 構築時の実例: PR #50 以前)。
+Container image / env を変えずに instance だけ recycle するには、label 更新で
+新 revision を強制的に切る:
+
+```bash
+gcloud run services update aka-ai-api-service \
+  --region=asia-northeast1 \
+  --project=aka-ai-api \
+  --update-labels=force-restart=$(date +%s)
+```
+
+Cloud Run が新 revision を作って 100% traffic を切り替え、古い instance を
+kill する。無停止で完了。
+
+---
+
+## 7. bot 反映 — GAS の新バージョン発行と LINE Webhook 確認
+
+`jobs.bot` の `clasp push --force` は **スクリプトエディタにコードを書き込む**
+だけで、LINE Webhook が叩く Web App URL の **配信バージョンは自動で
+進まない**。新コードを本番に反映するには、GAS で「新しいバージョン」を
+明示的に発行する必要がある (同じ Web App URL のまま、内部バージョンだけ進める)。
+
+### 手順
+
+1. GAS エディタを開く
+   - リポルートで `make console` を実行するか、以下の URL を直接開く:
+     - https://script.google.com/home/projects/1Mmc00qLMFH5seUCLg-uYDP8OGX7eKTgMNxYG7nOcevrIqEGA2XqNfnIu/edit
+
+2. エディタ右上の **デプロイ** → **デプロイを管理** を開く
+
+3. LINE Webhook が使っている既存デプロイ (ウェブアプリ) の **編集** (鉛筆アイコン)
+   をクリック
+
+4. **バージョン** を「**新しいバージョン**」に切り替え、必要に応じ説明
+   (例: `feat: conversation-context`) を入力して **デプロイ**
+
+5. 表示される **ウェブアプリ URL** が変わっていないことを確認
+   (`https://script.google.com/macros/s/<deploymentId>/exec` の deploymentId
+   は維持される)
+
+> 同じ deployment を編集して新バージョンに切り替える限り URL は不変。
+> 「新規デプロイ」を押すと別 deploymentId の URL になってしまい、LINE 側の
+> Webhook 更新が必要になるので **既存デプロイの編集経路を使う**こと。
+
+### LINE Messaging API 側の確認
+
+LINE Developers Console:
+
+- https://developers.line.biz/console/channel/1660869337/messaging-api
+
+ここで **Webhook URL** が手順 5 の URL と一致していることを確認する。
+通常は何も触らなくてよい (deploymentId 不変のため)。URL を貼り直した場合は
+「検証」ボタンで疎通テストすると `Success` が返ることを確認する。
+
+### 動作確認 (smoke)
+
+LINE bot を経由した end-to-end チェック:
+
+1. LINE のグループ or 個チャで「あか」にメンションして任意のメッセージを送る
+2. 応答が返る (テンプレ即応 or AI 応答)
+3. (任意) Cloud Logging で `chat completed` イベントに該当ターンが流れて
+   いること、`piiRedactions` / `historyTurns` が記録されていることを確認
+4. (任意) Firestore Console で `conversation/user:{userId}` ドキュメントに
+   messages が追記されていることを確認
+
+> bot 経由でランダム応答が連発する場合は ai 側で 500 / 502 が返って
+> chatWithAi が null フォールバックしている。Cloud Logging で
+> `severity>=WARNING` のフィルタを掛けて根本原因を確認する。

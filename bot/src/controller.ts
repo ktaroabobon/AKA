@@ -1,5 +1,7 @@
 import * as AKA from "./aka.js";
 import { chatWithAi } from "./aiClient.js";
+import { buildSessionKey } from "./lib/sessionKey.js";
+import type { LineSource } from "./types/line.js";
 
 export type EventType = "message" | "join" | string;
 
@@ -7,13 +9,16 @@ export interface GenerateReplyInput {
   eventType: EventType;
   userMessage: string;
   isBotMentioned: boolean;
+  source: LineSource;
 }
 
 export interface GenerateReplyDeps {
   /** AKA-AI を叩いて応答を取得する関数。テストで差し替え可能。 */
-  ai?: (prompt: string) => string | null;
+  ai?: (prompt: string, sessionKey: string) => string | null;
   /** AI 呼び出し失敗時のフォールバック。 */
   fallback?: () => string;
+  /** LINE source から sessionKey を組み立てる関数。テストで差し替え可能。 */
+  sessionKeyBuilder?: (source: LineSource) => string | null;
 }
 
 /** 入力に対する応答テキストを生成する。応答すべきでないときは null。 */
@@ -42,7 +47,13 @@ export function generateReply(
   // AI に投げる。失敗時はランダム応答にフォールバック
   const ai = deps.ai ?? chatWithAi;
   const fallback = deps.fallback ?? AKA.sayRandom;
-  const aiReply = ai(input.userMessage);
+  const buildKey = deps.sessionKeyBuilder ?? buildSessionKey;
+
+  // sessionKey が取れないなら AI 呼び出しをスキップして fallback (Req 1.5)
+  const sessionKey = buildKey(input.source);
+  if (sessionKey === null) return fallback();
+
+  const aiReply = ai(input.userMessage, sessionKey);
   if (aiReply !== null && aiReply.length > 0) return aiReply;
   return fallback();
 }

@@ -172,7 +172,7 @@
   - _Requirements: 1.4, 6.3, 6.4, 8.4_
   - _Depends: 2.2_
 
-- [ ] 6.3 controller に sessionKey 経路を組み込む
+- [x] 6.3 controller に sessionKey 経路を組み込む
   - `bot/src/controller.ts` の AI 呼び出し直前で `buildSessionKey(event.source)` を実行し、`null` なら AI 呼び出しをスキップして既存 random fallback に切り替え
   - `null` でなければ `chatWithAi(prompt, encryptedApiKey, sessionKey)` を呼び、応答 / `null` 時の random fallback は既存通り
   - 既存 `deps` 注入パターンに `sessionKeyBuilder` を任意 override として追加 (テスト容易性)
@@ -180,7 +180,7 @@
   - _Requirements: 1.5, 6.1, 6.2, 6.3, 6.4, 8.4_
   - _Depends: 6.1, 6.2_
 
-- [ ] 6.4 controller の単体テストを更新する
+- [x] 6.4 controller の単体テストを更新する
   - `bot/__tests__/controller.test.ts` に以下を追加:
     - `event.source.type === "user"` で `user:{id}` sessionKey が aiClient に渡る
     - `event.source.type === "group"` でメンション時に `group:{id}` sessionKey が渡る

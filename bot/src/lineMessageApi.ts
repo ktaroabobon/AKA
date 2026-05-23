@@ -101,6 +101,7 @@ export function doPost(
     eventType: event.type,
     userMessage: mention.userMessage,
     isBotMentioned: mention.isBotMentioned,
+    source: event.source,
   });
 
   if (reply === null || !event.replyToken) return null;

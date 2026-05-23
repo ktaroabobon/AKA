@@ -22,6 +22,9 @@ RUN pnpm install --frozen-lockfile --filter ai...
 
 # ソースをコピーしてビルド（tsc → ai/dist）
 COPY ai/src ./ai/src
+# NG 辞書などの vendor 資産は dist にバンドルされないが、ランタイムで
+# `import.meta.url` 基準の readFileSync で参照されるため builder 経由で運ぶ。
+COPY ai/vendor ./ai/vendor
 RUN pnpm --filter ai build
 
 # 本番ランタイム用に prod 依存だけを独立ツリーとして取り出す。
@@ -40,6 +43,9 @@ WORKDIR /app
 COPY --from=builder /prod-out/package.json ./package.json
 COPY --from=builder /prod-out/node_modules ./node_modules
 COPY --from=builder /workspace/ai/dist ./dist
+# moderation.ts は `new URL("../../vendor/inappropriate-words-ja/...", import.meta.url)`
+# で NG 辞書を起動時に readFileSync する。dist と隣接させるため /app/vendor に置く。
+COPY --from=builder /workspace/ai/vendor ./vendor
 
 EXPOSE 8080
 USER node

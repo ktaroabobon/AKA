@@ -50,6 +50,11 @@ export interface components {
             status: "ok";
         };
         ChatRequest: {
+            /**
+             * @description 会話セッションの識別子。`group:{groupId}` / `room:{roomId}` /
+             *     `user:{userId}` のいずれかの形式で bot 側が組み立てる。
+             */
+            sessionKey: string;
             /** @description ユーザーからの発話 */
             prompt: string;
             /** @description base64 でエンコードされた Gemini API キー */

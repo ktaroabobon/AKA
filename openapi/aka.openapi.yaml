@@ -73,8 +73,14 @@ components:
           example: ok
     ChatRequest:
       type: object
-      required: [prompt, encrypted_api_key]
+      required: [sessionKey, prompt, encrypted_api_key]
       properties:
+        sessionKey:
+          type: string
+          minLength: 1
+          description: |
+            会話セッションの識別子。`group:{groupId}` / `room:{roomId}` /
+            `user:{userId}` のいずれかの形式で bot 側が組み立てる。
         prompt:
           type: string
           minLength: 1

@@ -32,13 +32,13 @@
 ---
 
 - [ ] 2. API 契約: OpenAPI 拡張と生成型再生成
-- [ ] 2.1 OpenAPI に sessionKey を追加する
+- [x] 2.1 OpenAPI に sessionKey を追加する
   - `openapi/aka.openapi.yaml` の `ChatRequest` スキーマに必須フィールド `sessionKey` (type: string, minLength: 1) を追加
   - `required` 配列に `sessionKey` を含める
   - yaml の `git diff` で `sessionKey` が現れる
   - _Requirements: 7.1_
 
-- [ ] 2.2 生成型を再生成して両 workspace にコミットする
+- [x] 2.2 生成型を再生成して両 workspace にコミットする
   - `make oapi/types` を実行し `ai/src/api/generated.ts` と `bot/src/api/generated.ts` を更新
   - `make oapi/check-gen` が exit 0 で pass する
   - `ai/src/api/generated.ts` / `bot/src/api/generated.ts` の `ChatRequest` に `sessionKey: string` が型として現れる
@@ -228,3 +228,4 @@
 ## Implementation Notes
 
 - 新規 / 編集した `.md` ファイルは必ず `pnpm exec prettier --write <path>` を実行してから提出すること。Prettier 整形漏れは CI / レビューで弾かれる (task 1.3 の reject 事例)。
+- task 2.1+2.2 のコミット直後は **bot typecheck が一時的に壊れる** (aiClient が sessionKey を渡していないため)。これは task 6.2 で解消する想定。中間状態なので task 8.1 の quality check は最後に回す。

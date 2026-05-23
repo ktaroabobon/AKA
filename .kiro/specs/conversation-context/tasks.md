@@ -101,7 +101,7 @@
   - _Requirements: 2.1, 2.2, 2.3, 3.1, 3.2, 3.3, 8.3_
   - _Depends: 3.2_
 
-- [ ] 4.3 SessionService の単体テストを書く
+- [x] 4.3 SessionService の単体テストを書く
   - `ai/__tests__/session.test.ts` で Firestore クライアントを `vi.mock` し、以下を検証:
     - 「21 件以上ある履歴に対し直近 20 件のみ返す」「最終発話から 2h 超過なら空配列を返す」(Req 3.1, 3.2)
     - 「`expiresAt = lastTurnAt + 24h` が設定される」「超過 message を古い順に破棄する」(Req 2.2, 2.3)

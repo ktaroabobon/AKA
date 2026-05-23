@@ -66,7 +66,7 @@
   - _Requirements: 5.2_
   - _Boundary: lib/trie_
 
-- [ ] 3.4 (P) ランダム選択関数を実装する
+- [x] 3.4 (P) ランダム選択関数を実装する
   - `ai/src/lib/pickRandom.ts` に純関数 `pickRandom<T>(arr: readonly T[]): T` を実装 (空配列は呼出側で防ぐ前提)
   - `ai/__tests__/pickRandom.test.ts` で「全要素が一定確率で返る (試行 1000 回で分布確認)」を sanity チェック
   - `pnpm --filter ai test pickRandom` が pass

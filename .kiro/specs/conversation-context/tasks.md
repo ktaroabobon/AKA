@@ -92,7 +92,7 @@
   - _Boundary: services/moderation_
   - _Depends: 1.2, 3.3_
 
-- [ ] 4.2 SessionService を実装する
+- [x] 4.2 SessionService を実装する
   - `ai/src/services/session.ts` に `getRecent(sessionKey, now): Promise<ConversationMessage[]>` と `append(sessionKey, userText, modelText, now): Promise<void>` を実装
   - `getRecent` は Firestore からドキュメントを取得し、「直近 20 ターン」かつ「最終発話から 2h 以内」でフィルタ、超過分は除外
   - `append` は 1 ドキュメントに `messages` 配列を append-only round-robin (20 件で trim)、`lastTurnAt = now`、`expiresAt = now + 24h` を `set({ merge: false })` で書く

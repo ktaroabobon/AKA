@@ -143,7 +143,7 @@
   - _Requirements: 2.5, 4.3, 4.4, 4.5, 5.4, 5.5, 7.4, 7.5, 8.1, 8.3_
   - _Depends: 3.4, 3.5, 4.1, 4.3, 4.4, 5.1_
 
-- [ ] 5.3 chat ルートの統合テストを更新する
+- [x] 5.3 chat ルートの統合テストを更新する
   - `ai/__tests__/chat.test.ts` に以下のケースを追加 (`vi.mock` で moderation / session / genai を差し替え):
     - 正常系: 順序 (mask → getRecent → genai → mask → append) で呼ばれ 200 を返す
     - SAFETY ブロック: `GenaiSafetyBlockedError` 発生時に 200 + `SAFETY_FALLBACK_MESSAGES` のいずれかが返り、`session.append` が呼ばれない

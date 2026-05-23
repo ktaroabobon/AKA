@@ -4,7 +4,7 @@
 
 ---
 
-- [ ] 1. Foundation: 依存追加と運用前提ドキュメント
+- [x] 1. Foundation: 依存追加と運用前提ドキュメント
 - [x] 1.1 ai に Firestore Admin SDK を依存追加する
   - `ai/package.json` の dependencies に `@google-cloud/firestore` ^8.6.0 を追加
   - リポジトリルートで `pnpm install` を実行し `pnpm-lock.yaml` を再生成
@@ -31,7 +31,7 @@
 
 ---
 
-- [ ] 2. API 契約: OpenAPI 拡張と生成型再生成
+- [x] 2. API 契約: OpenAPI 拡張と生成型再生成
 - [x] 2.1 OpenAPI に sessionKey を追加する
   - `openapi/aka.openapi.yaml` の `ChatRequest` スキーマに必須フィールド `sessionKey` (type: string, minLength: 1) を追加
   - `required` 配列に `sessionKey` を含める
@@ -46,7 +46,7 @@
 
 ---
 
-- [ ] 3. ai 共通 lib 層と prompts 拡張
+- [x] 3. ai 共通 lib 層と prompts 拡張
 - [x] 3.1 Firestore 環境変数を追加する
   - `ai/src/config/env.ts` の zod スキーマに `GCP_PROJECT_ID` (string, min 1) を必須追加
   - 必要に応じて `FIRESTORE_DATABASE_ID` (省略時 `(default)`) も optional で追加
@@ -81,7 +81,7 @@
 
 ---
 
-- [ ] 4. ai サービス層: Moderation / Session / Genai
+- [x] 4. ai サービス層: Moderation / Session / Genai
 - [x] 4.1 (P) ModerationService を実装する
   - `ai/src/services/moderation.ts` に `mask(text): { masked, redactionCount: { pii, profanity } }` の純関数を実装
   - NFKC 正規化、電話番号 (携帯 / 固定)、メール、クレジットカード (Luhn)、マイナンバー、郵便番号の PII 正規表現と、`ai/vendor/inappropriate-words-ja/` から読んだ Trie マッチを順次適用
@@ -123,7 +123,7 @@
 
 ---
 
-- [ ] 5. ai route 層: zod 拡張と orchestration
+- [x] 5. ai route 層: zod 拡張と orchestration
 - [x] 5.1 zod スキーマに sessionKey を必須追加する
   - `ai/src/schemas/chat.ts` の `chatRequestSchema` に `sessionKey: z.string().min(1)` を必須として追加
   - 既存の `prompt` / `encrypted_api_key` の制約は変更しない
@@ -155,7 +155,7 @@
 
 ---
 
-- [ ] 6. bot 側: sessionKey 組立と AI 連携
+- [x] 6. bot 側: sessionKey 組立と AI 連携
 - [x] 6.1 (P) sessionKey builder を実装する
   - `bot/src/lib/sessionKey.ts` を新設し `buildSessionKey(source: LineEventSource): string | null` を実装
   - `source.type === "group"` → `group:{groupId}`、`"room"` → `room:{roomId}`、`"user"` → `user:{userId}`、対応 ID 欠落 / 未対応 type は `null`
@@ -192,7 +192,7 @@
 
 ---
 
-- [ ] 7. 統合 CD workflow
+- [x] 7. 統合 CD workflow
 - [x] 7.1 単一 deploy workflow を新設する
   - `.github/workflows/deploy.yml` を新規作成し、`on: workflow_dispatch` (input: `ref` デフォルト master) を設定
   - jobs:

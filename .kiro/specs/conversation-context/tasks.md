@@ -23,7 +23,7 @@
   - `docs/local-dev.md` ファイルが存在し、上記節がすべて含まれる
   - _Requirements: 2.1, 8.3_
 
-- [ ] 1.4 デプロイドキュメントを更新する
+- [x] 1.4 デプロイドキュメントを更新する
   - `docs/deploy-setup.md` に Firestore Native DB 作成手順、`roles/datastore.user` 追加コマンド、`gcloud firestore fields ttls update expiresAt --collection-group=conversation --enable-ttl` の設定手順、新規 `deploy.yml` の使い方、smoke check 失敗時の手動 Cloud Run revision 戻し手順を追記
   - 既存 `ai-deploy.yml` / `bot-deploy.yml` 節を削除し、単一 `deploy.yml` への移行を案内する
   - `docs/deploy-setup.md` を読めば、新規 user が gcloud / GitHub Actions 経由で本仕様一式をセットアップできる
@@ -222,3 +222,9 @@
   - Firestore コンソールで `conversation/user:test` ドキュメントに `messages`, `lastTurnAt`, `expiresAt` が書き込まれていることを確認
   - _Requirements: 2.1, 2.3, 4.1, 5.3_
   - _Depends: 8.1_
+
+---
+
+## Implementation Notes
+
+- 新規 / 編集した `.md` ファイルは必ず `pnpm exec prettier --write <path>` を実行してから提出すること。Prettier 整形漏れは CI / レビューで弾かれる (task 1.3 の reject 事例)。

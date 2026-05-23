@@ -1,8 +1,12 @@
 # Deploy Setup
 
-`workflow_dispatch` で `Deploy ai to Cloud Run` / `Deploy bot to GAS`
+`workflow_dispatch` で単一 workflow `Deploy AKA` (`.github/workflows/deploy.yml`)
 を回すために必要な GCP / GitHub 側の事前セットアップ手順をまとめる。
 **1 回だけ実行する作業**。
+
+> 旧 workflow `Deploy ai to Cloud Run` (`ai-deploy.yml`) と `Deploy bot to GAS`
+> (`bot-deploy.yml`) は廃止された。Actions タブに残っていても起動せず、
+> 後述の `Deploy AKA` を使うこと。
 
 ---
 
@@ -24,12 +28,15 @@ gcloud iam service-accounts create "$SA_NAME" \
 # 2) SA にプロジェクトレベルのロールを付与
 #    artifactregistry.reader は gcr.io が Artifact Registry に
 #    バックエンド移行されているため Cloud Run deploy の pre-check で必須。
+#    datastore.user は ai サービスが Firestore の conversation collection に
+#    読み書きするために必要 (Cloud Run の実行 SA に ADC 経由で付与される)。
 for role in \
   roles/cloudbuild.builds.editor \
   roles/run.admin \
   roles/iam.serviceAccountUser \
   roles/storage.admin \
   roles/artifactregistry.reader \
+  roles/datastore.user \
 ; do
   gcloud projects add-iam-policy-binding "$PROJECT_ID" \
     --member="serviceAccount:${SA_EMAIL}" \
@@ -66,6 +73,14 @@ gcloud projects add-iam-policy-binding aka-ai-api \
   --role="roles/artifactregistry.reader"
 ```
 
+### すでに WIF をセットアップ済みで datastore.user だけ追加する場合
+
+```bash
+gcloud projects add-iam-policy-binding aka-ai-api \
+  --member="serviceAccount:github-actions-deployer@aka-ai-api.iam.gserviceaccount.com" \
+  --role="roles/datastore.user"
+```
+
 ### SA に付与されているロールの確認
 
 ```bash
@@ -80,6 +95,7 @@ gcloud projects get-iam-policy aka-ai-api \
 ```
 roles/artifactregistry.reader
 roles/cloudbuild.builds.editor
+roles/datastore.user
 roles/iam.serviceAccountUser
 roles/run.admin
 roles/storage.admin
@@ -87,7 +103,51 @@ roles/storage.admin
 
 ---
 
-## 2. GAS: clasp credentials
+## 2. GCP: Firestore Native DB と TTL ポリシー
+
+ai サービスが会話履歴 (`conversation` collection) を保存するため、Firestore を
+**Native モード** で 1 度だけ作成し、`expiresAt` フィールドに TTL ポリシーを設定する。
+
+### Firestore Native DB の作成
+
+```bash
+gcloud firestore databases create \
+  --location=asia-northeast1 \
+  --type=firestore-native \
+  --project=aka-ai-api
+```
+
+> すでに `(default)` データベースが Datastore モードで作成済みの場合は、新しい
+> プロジェクトでやり直すか、別名 DB を作って `FIRESTORE_DATABASE_ID` で指定する
+> (本プロジェクトでは `(default)` を Native で作成する前提)。
+> GUI からセットアップしたい場合は GCP Console の Firestore → "Create database"
+> で `Native mode` / `asia-northeast1` を選択する。
+
+### TTL ポリシーの設定
+
+`conversation` collection group の `expiresAt` フィールドを TTL に指定する。
+これにより 24 時間経過したセッションドキュメントが Firestore 側で自動削除される。
+
+```bash
+gcloud firestore fields ttls update expiresAt \
+  --collection-group=conversation \
+  --enable-ttl \
+  --project=aka-ai-api
+```
+
+確認:
+
+```bash
+gcloud firestore fields ttls list --project=aka-ai-api
+# conversation.expiresAt  ACTIVE
+```
+
+> TTL の伝搬には数分〜十数分かかることがある。`State: CREATING` のうちは
+> 即時削除されない点に注意。
+
+---
+
+## 3. GAS: clasp credentials
 
 ```bash
 # bot に紐づく Google アカウントで clasp login
@@ -99,7 +159,7 @@ pbcopy < ~/.clasprc.json
 
 ---
 
-## 3. GitHub Secrets
+## 4. GitHub Secrets
 
 リポジトリの **Settings → Secrets and variables → Actions → New repository secret** で
 以下を登録する。
@@ -121,7 +181,7 @@ gh secret list
 
 ---
 
-## 4. GitHub Environment 「production」（任意）
+## 5. GitHub Environment 「production」（任意）
 
 Settings → Environments → New environment → `production`。
 
@@ -132,11 +192,49 @@ Settings → Environments → New environment → `production`。
 
 ---
 
-## 5. デプロイの回し方
+## 6. デプロイの回し方
 
-GitHub の Actions タブから：
+GitHub の Actions タブから **Deploy AKA** (`.github/workflows/deploy.yml`) を選び、
+`Run workflow` で `workflow_dispatch` する。
 
-- **Deploy ai to Cloud Run** → `workflow_dispatch` で実行（`ref` は通常 `master`）
-- **Deploy bot to GAS** → `workflow_dispatch` で実行
+- 入力 `ref` にデプロイ対象のブランチ / タグ / SHA を指定（通常は `master`）
+- `Deploy AKA` 内で **jobs.bot → jobs.ai** の順に直列実行される
+  - `jobs.bot`: clasp credentials を復元し `pnpm --filter bot build` → `clasp push --force`
+  - `jobs.ai`: `needs: bot` 付きで WIF 認証 → `gcloud builds submit` → `gcloud run deploy`
+    → Cloud Run service URL の `/health` に対し smoke check (curl で HTTP コード確認)
+- `jobs.bot` が失敗した場合は `jobs.ai` は実行されず workflow が失敗する
+- `/health` smoke check が 2xx 以外なら workflow は失敗で終了する
 
-任意の `ref`（ブランチ / タグ / SHA）を指定可能。
+> 旧 `ai-deploy.yml` / `bot-deploy.yml` は削除済み。これらの workflow を個別に
+> 起動する運用は終了しており、必ず `Deploy AKA` 経由で回す。
+
+### smoke check 失敗時の手動 rollback
+
+`Deploy AKA` の ai job 最後の `/health` smoke check が落ちた場合、Cloud Run の
+revision は **自動ロールバックされない**。Cloud Run の revision 切替は
+運用者が手動で行う前提。
+
+GCP Console から戻す手順:
+
+1. Cloud Run console で `aka-ai-api-service` を開く
+2. **Revisions** タブで直前の green revision (smoke check 通過済みのもの) を選ぶ
+3. **Manage traffic** → **Migrate traffic** → 該当 revision を **100%** に設定して保存
+
+gcloud で戻す場合:
+
+```bash
+# 1) 直近の revision 一覧を確認
+gcloud run revisions list \
+  --service=aka-ai-api-service \
+  --region=asia-northeast1 \
+  --project=aka-ai-api
+
+# 2) 一つ前の green revision に 100% トラフィックを切り替え
+gcloud run services update-traffic aka-ai-api-service \
+  --to-revisions=<prev-revision>=100 \
+  --region=asia-northeast1 \
+  --project=aka-ai-api
+```
+
+> rollback 後、失敗 revision の原因 (Cloud Run ログ / Firestore 権限 / env 変数等)
+> を別途調査・修正してから `Deploy AKA` を再実行する。

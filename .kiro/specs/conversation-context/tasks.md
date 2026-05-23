@@ -73,7 +73,7 @@
   - _Requirements: 4.3, 4.5_
   - _Boundary: lib/pickRandom_
 
-- [ ] 3.5 (P) prompts/aka.ts に SAFETY フォールバック文言を追加する
+- [x] 3.5 (P) prompts/aka.ts に SAFETY フォールバック文言を追加する
   - 既存の `akaSystemInstruction` を保持したまま、新たに `SAFETY_FALLBACK_MESSAGES: readonly string[]` (3〜5 種類のあかキャラ口調バリエーション、例: 「うーん、よくわかんないや」「ごめんね、それは難しいなあ」) を export
   - `pnpm --filter ai typecheck` が pass、grep で `SAFETY_FALLBACK_MESSAGES` の export が確認できる
   - _Requirements: 4.5_

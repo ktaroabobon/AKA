@@ -59,7 +59,7 @@
   - `ai/src/services/` から `getFirestore()` で同一インスタンスが取得できる、`pnpm --filter ai typecheck` が pass
   - _Requirements: 2.1_
 
-- [ ] 3.3 (P) Trie ユーティリティを実装する
+- [x] 3.3 (P) Trie ユーティリティを実装する
   - `ai/src/lib/trie.ts` に文字列配列からの Trie 構築 (`buildTrie(words)`) と最長一致探索 (`findMatches(trie, text)`) を実装
   - `ai/__tests__/trie.test.ts` で「複数候補のうち最長一致が選ばれる」「部分一致が false positive を出さない」の 2 ケースを最低限カバー
   - `pnpm --filter ai test trie` が pass

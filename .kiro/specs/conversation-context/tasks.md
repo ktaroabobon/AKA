@@ -53,7 +53,7 @@
   - `pnpm --filter ai typecheck` が pass し、起動時に新規 env がバリデーションされる
   - _Requirements: 2.1, 8.3_
 
-- [ ] 3.2 Firestore クライアント singleton を実装する
+- [x] 3.2 Firestore クライアント singleton を実装する
   - `ai/src/lib/firestore.ts` を新設し、module top-level で `new Firestore()` (ADC 経由) を生成して export
   - 必要に応じ `databaseId` を env から渡す
   - `ai/src/services/` から `getFirestore()` で同一インスタンスが取得できる、`pnpm --filter ai typecheck` が pass

@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 export const chatRequestSchema = z.object({
+  sessionKey: z.string().min(1, "sessionKey must not be empty"),
   prompt: z.string().min(1, "prompt must not be empty"),
   encrypted_api_key: z.string().min(1, "encrypted_api_key must not be empty"),
 });

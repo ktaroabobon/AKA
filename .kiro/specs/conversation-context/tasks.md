@@ -124,7 +124,7 @@
 ---
 
 - [ ] 5. ai route 層: zod 拡張と orchestration
-- [ ] 5.1 zod スキーマに sessionKey を必須追加する
+- [x] 5.1 zod スキーマに sessionKey を必須追加する
   - `ai/src/schemas/chat.ts` の `chatRequestSchema` に `sessionKey: z.string().min(1)` を必須として追加
   - 既存の `prompt` / `encrypted_api_key` の制約は変更しない
   - `pnpm --filter ai typecheck` が pass

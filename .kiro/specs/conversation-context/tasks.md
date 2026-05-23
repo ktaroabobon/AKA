@@ -164,7 +164,7 @@
   - _Requirements: 1.1, 1.2, 1.3, 1.5_
   - _Boundary: bot/lib/sessionKey_
 
-- [ ] 6.2 aiClient に sessionKey を同梱する
+- [x] 6.2 aiClient に sessionKey を同梱する
   - `bot/src/aiClient.ts` の `chatWithAi` に `sessionKey: string` 引数を追加し、`UrlFetchApp.fetch` の payload に同梱
   - 生成型 `components["schemas"]["ChatRequest"]` を使い、手書き interface を作らない
   - HTTP 非 2xx / network エラー / timeout で `null` を返す挙動は維持 (controller 側 fallback 用)

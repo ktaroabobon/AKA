@@ -63,7 +63,7 @@ function makeEnv(overrides: Partial<Env> = {}): Env {
   return {
     PORT: 8080,
     LOG_LEVEL: "info",
-    GEMINI_MODEL: "gemini-test-model",
+    GEMINI_MODELS: ["gemini-test-model"],
     NODE_ENV: "test",
     GCP_PROJECT_ID: "test-project",
     FIRESTORE_DATABASE_ID: "(default)",
@@ -292,5 +292,84 @@ describe("GenaiService.generate", () => {
       }),
       "genai attempt failed",
     );
+  });
+
+  it("retryable error の場合は GEMINI_MODELS を上から順番に試す", async () => {
+    const { sendMessage, create } = await getMocks();
+    sendMessage
+      .mockRejectedValueOnce({ status: 503, message: "high demand" })
+      .mockResolvedValueOnce({
+        text: "fallback reply",
+        candidates: [{ finishReason: "STOP" }],
+      });
+    const logger = makeLogger();
+
+    const service = createGenaiService(
+      makeEnv({ GEMINI_MODELS: ["gemini-test-model", "gemini-next-model"] }),
+      logger,
+    );
+    const reply = await service.generate(makeInput());
+
+    expect(reply).toBe("fallback reply");
+    expect(create).toHaveBeenCalledTimes(2);
+    expect(create.mock.calls[0]?.[0]).toMatchObject({
+      model: "gemini-test-model",
+    });
+    expect(create.mock.calls[1]?.[0]).toMatchObject({
+      model: "gemini-next-model",
+    });
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        model: "gemini-test-model",
+        attempt: 1,
+        status: "error",
+        fallbackUsed: false,
+        upstreamStatusCode: 503,
+      }),
+      "genai attempt failed",
+    );
+    expect(logger.info).toHaveBeenCalledWith(
+      expect.objectContaining({
+        model: "gemini-next-model",
+        attempt: 2,
+        status: "success",
+        fallbackUsed: true,
+      }),
+      "genai attempt completed",
+    );
+  });
+
+  it("non-retryable error の場合は後続 model を試さない", async () => {
+    const { sendMessage, create } = await getMocks();
+    sendMessage.mockRejectedValueOnce({ status: 400, message: "bad request" });
+
+    const service = createGenaiService(
+      makeEnv({ GEMINI_MODELS: ["gemini-test-model", "gemini-next-model"] }),
+    );
+
+    await expect(service.generate(makeInput())).rejects.toBeInstanceOf(
+      GenaiServiceError,
+    );
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(create.mock.calls[0]?.[0]).toMatchObject({
+      model: "gemini-test-model",
+    });
+  });
+
+  it("SAFETY ブロックの場合は後続 model を試さない", async () => {
+    const { sendMessage, create } = await getMocks();
+    sendMessage.mockResolvedValueOnce({
+      text: "",
+      candidates: [{ finishReason: "SAFETY" }],
+    });
+
+    const service = createGenaiService(
+      makeEnv({ GEMINI_MODELS: ["gemini-test-model", "gemini-next-model"] }),
+    );
+
+    await expect(service.generate(makeInput())).rejects.toBeInstanceOf(
+      GenaiSafetyBlockedError,
+    );
+    expect(create).toHaveBeenCalledTimes(1);
   });
 });

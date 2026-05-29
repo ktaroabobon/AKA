@@ -5,6 +5,8 @@
  *   でセッションを毎リクエスト生成し、`chat.sendMessage({ message: userText })` で応答取得
  * - `safetySettings` は 4 カテゴリ (HARASSMENT / HATE_SPEECH / SEXUALLY_EXPLICIT /
  *   DANGEROUS_CONTENT) を `BLOCK_MEDIUM_AND_ABOVE` で固定 (Req 4.2)
+ * - `GEMINI_MODELS` をカンマ区切りの候補一覧として、429/5xx/ネットワーク系の
+ *   一過性失敗時だけ先頭から順番に試す。
  * - SAFETY ブロック (`finishReason === SAFETY`)・空 candidates・空 text は
  *   `GenaiSafetyBlockedError` を投げる。route 層が捕捉して履歴に保存せず、
  *   中立メッセージを返す (Req 4.3)
@@ -126,94 +128,146 @@ function logAttempt(
   }
 }
 
+function getModelCandidates(env: Env): string[] {
+  const seen = new Set<string>();
+  return env.GEMINI_MODELS.filter((model) => {
+    if (model.length === 0 || seen.has(model)) return false;
+    seen.add(model);
+    return true;
+  });
+}
+
+function isRetryableUpstreamFailure(statusCode: number | undefined): boolean {
+  if (statusCode === undefined) return true;
+  return [429, 500, 502, 503, 504].includes(statusCode);
+}
+
+async function generateWithModel(input: {
+  ai: GoogleGenAI;
+  model: string;
+  history: ConversationMessage[];
+  userText: string;
+  attempt: number;
+  fallbackUsed: boolean;
+  logger?: Logger;
+}): Promise<string> {
+  const chat = input.ai.chats.create({
+    model: input.model,
+    config: {
+      systemInstruction: akaSystemInstruction,
+      safetySettings: SAFETY_SETTINGS,
+    },
+    history: input.history.map(toContent),
+  });
+
+  let response;
+  const startedAt = Date.now();
+  try {
+    response = await chat.sendMessage({ message: input.userText });
+  } catch (cause) {
+    // ApiKeyDecodeError は decodeApiKey からのみ伝播する想定だが念のため
+    if (cause instanceof ApiKeyDecodeError) throw cause;
+    logAttempt(input.logger, {
+      model: input.model,
+      attempt: input.attempt,
+      status: "error",
+      fallbackUsed: input.fallbackUsed,
+      durationMs: Date.now() - startedAt,
+      upstreamStatusCode: getErrorStatusCode(cause),
+    });
+    throw new GenaiServiceError("Failed to call Gemini", { cause });
+  }
+
+  // Req 4.3: SAFETY ブロック / 空 candidates / 空 text は SafetyBlockedError
+  const candidates = response.candidates ?? [];
+  const finishReason = candidates[0]?.finishReason;
+  if (finishReason === FinishReason.SAFETY) {
+    logAttempt(input.logger, {
+      model: input.model,
+      attempt: input.attempt,
+      status: "safety_blocked",
+      fallbackUsed: input.fallbackUsed,
+      durationMs: Date.now() - startedAt,
+      finishReason,
+    });
+    throw new GenaiSafetyBlockedError(
+      "Gemini blocked the response by safetySettings",
+    );
+  }
+  if (candidates.length === 0) {
+    logAttempt(input.logger, {
+      model: input.model,
+      attempt: input.attempt,
+      status: "safety_blocked",
+      fallbackUsed: input.fallbackUsed,
+      durationMs: Date.now() - startedAt,
+      finishReason,
+    });
+    throw new GenaiSafetyBlockedError(
+      "Gemini returned no candidates (treated as safety block)",
+    );
+  }
+
+  const reply = response.text;
+  if (!reply) {
+    logAttempt(input.logger, {
+      model: input.model,
+      attempt: input.attempt,
+      status: "safety_blocked",
+      fallbackUsed: input.fallbackUsed,
+      durationMs: Date.now() - startedAt,
+      finishReason,
+    });
+    throw new GenaiSafetyBlockedError(
+      "Gemini returned an empty response (treated as safety block)",
+    );
+  }
+  logAttempt(input.logger, {
+    model: input.model,
+    attempt: input.attempt,
+    status: "success",
+    fallbackUsed: input.fallbackUsed,
+    durationMs: Date.now() - startedAt,
+    finishReason,
+  });
+  return reply;
+}
+
 export function createGenaiService(env: Env, logger?: Logger): GenaiService {
   return {
     async generate({ history, userText, encryptedApiKey }) {
       // ApiKeyDecodeError はそのまま投げる (route 層が 400 invalid_api_key として直接処理)
       const apiKey = decodeApiKey(encryptedApiKey);
       const ai = new GoogleGenAI({ apiKey });
-      const model = env.GEMINI_MODEL;
+      const models = getModelCandidates(env);
+      let lastError: GenaiServiceError | undefined;
 
-      const chat = ai.chats.create({
-        model,
-        config: {
-          systemInstruction: akaSystemInstruction,
-          safetySettings: SAFETY_SETTINGS,
-        },
-        history: history.map(toContent),
-      });
+      for (const [index, model] of models.entries()) {
+        try {
+          return await generateWithModel({
+            ai,
+            model,
+            history,
+            userText,
+            attempt: index + 1,
+            fallbackUsed: index > 0,
+            logger,
+          });
+        } catch (err) {
+          if (err instanceof ApiKeyDecodeError) throw err;
+          if (err instanceof GenaiSafetyBlockedError) throw err;
+          if (!(err instanceof GenaiServiceError)) throw err;
 
-      let response;
-      const startedAt = Date.now();
-      try {
-        response = await chat.sendMessage({ message: userText });
-      } catch (cause) {
-        // ApiKeyDecodeError は decodeApiKey からのみ伝播する想定だが念のため
-        if (cause instanceof ApiKeyDecodeError) throw cause;
-        logAttempt(logger, {
-          model,
-          attempt: 1,
-          status: "error",
-          fallbackUsed: false,
-          durationMs: Date.now() - startedAt,
-          upstreamStatusCode: getErrorStatusCode(cause),
-        });
-        throw new GenaiServiceError("Failed to call Gemini", { cause });
+          lastError = err;
+          const statusCode = getErrorStatusCode(err.cause);
+          const isLastAttempt = index === models.length - 1;
+          if (isLastAttempt || !isRetryableUpstreamFailure(statusCode)) {
+            throw err;
+          }
+        }
       }
 
-      // Req 4.3: SAFETY ブロック / 空 candidates / 空 text は SafetyBlockedError
-      const candidates = response.candidates ?? [];
-      const finishReason = candidates[0]?.finishReason;
-      if (finishReason === FinishReason.SAFETY) {
-        logAttempt(logger, {
-          model,
-          attempt: 1,
-          status: "safety_blocked",
-          fallbackUsed: false,
-          durationMs: Date.now() - startedAt,
-          finishReason,
-        });
-        throw new GenaiSafetyBlockedError(
-          "Gemini blocked the response by safetySettings",
-        );
-      }
-      if (candidates.length === 0) {
-        logAttempt(logger, {
-          model,
-          attempt: 1,
-          status: "safety_blocked",
-          fallbackUsed: false,
-          durationMs: Date.now() - startedAt,
-          finishReason,
-        });
-        throw new GenaiSafetyBlockedError(
-          "Gemini returned no candidates (treated as safety block)",
-        );
-      }
-
-      const reply = response.text;
-      if (!reply) {
-        logAttempt(logger, {
-          model,
-          attempt: 1,
-          status: "safety_blocked",
-          fallbackUsed: false,
-          durationMs: Date.now() - startedAt,
-          finishReason,
-        });
-        throw new GenaiSafetyBlockedError(
-          "Gemini returned an empty response (treated as safety block)",
-        );
-      }
-      logAttempt(logger, {
-        model,
-        attempt: 1,
-        status: "success",
-        fallbackUsed: false,
-        durationMs: Date.now() - startedAt,
-        finishReason,
-      });
-      return reply;
+      throw lastError ?? new GenaiServiceError("No Gemini models configured");
     },
   };
 }

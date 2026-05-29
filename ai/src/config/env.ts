@@ -6,6 +6,7 @@ const envSchema = z.object({
     .enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"])
     .default("info"),
   GEMINI_MODEL: z.string().min(1).default("gemini-3.5-flash"),
+  GEMINI_FALLBACK_MODELS: z.string().default(""),
   NODE_ENV: z
     .enum(["development", "production", "test"])
     .default("development"),

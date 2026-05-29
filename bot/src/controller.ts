@@ -1,5 +1,5 @@
 import * as AKA from "./aka.js";
-import { chatWithAi } from "./aiClient.js";
+import { chatWithAiResult, type AiClientResult } from "./aiClient.js";
 import { buildSessionKey } from "./lib/sessionKey.js";
 import type { LineSource } from "./types/line.js";
 
@@ -14,9 +14,11 @@ export interface GenerateReplyInput {
 
 export interface GenerateReplyDeps {
   /** AKA-AI を叩いて応答を取得する関数。テストで差し替え可能。 */
-  ai?: (prompt: string, sessionKey: string) => string | null;
-  /** AI 呼び出し失敗時のフォールバック。 */
+  ai?: (prompt: string, sessionKey: string) => AiClientResult;
+  /** AI 呼び出し失敗時の通常フォールバック。 */
   fallback?: () => string;
+  /** AKA-AI が 5xx を返したときの専用フォールバック。 */
+  serverErrorFallback?: () => string;
   /** LINE source から sessionKey を組み立てる関数。テストで差し替え可能。 */
   sessionKeyBuilder?: (source: LineSource) => string | null;
 }
@@ -45,16 +47,18 @@ export function generateReply(
   if (selfIntro !== null) return selfIntro;
 
   // AI に投げる。失敗時はランダム応答にフォールバック
-  const ai = deps.ai ?? chatWithAi;
+  const ai = deps.ai ?? chatWithAiResult;
   const fallback = deps.fallback ?? AKA.sayRandom;
+  const serverErrorFallback = deps.serverErrorFallback ?? AKA.sayAiServerError;
   const buildKey = deps.sessionKeyBuilder ?? buildSessionKey;
 
   // sessionKey が取れないなら AI 呼び出しをスキップして fallback (Req 1.5)
   const sessionKey = buildKey(input.source);
   if (sessionKey === null) return fallback();
 
-  const aiReply = ai(input.userMessage, sessionKey);
-  if (aiReply !== null && aiReply.length > 0) return aiReply;
+  const aiResult = ai(input.userMessage, sessionKey);
+  if (aiResult.ok) return aiResult.reply;
+  if (aiResult.reason === "server_error") return serverErrorFallback();
   return fallback();
 }
 

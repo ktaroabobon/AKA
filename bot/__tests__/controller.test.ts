@@ -1,11 +1,30 @@
 import { describe, expect, it, vi } from "vitest";
 import "./setup.js";
 import { generateReply } from "../src/controller.js";
+import type { AiClientResult } from "../src/aiClient.js";
 import type { LineSource } from "../src/types/line.js";
 
 const USER_SOURCE: LineSource = { type: "user", userId: "U123" };
 const GROUP_SOURCE: LineSource = { type: "group", groupId: "C456" };
 const INVALID_SOURCE: LineSource = { type: "user" }; // userId 欠落
+
+function aiReply(reply: string): AiClientResult {
+  return { ok: true, reply };
+}
+
+function aiFailure(
+  reason:
+    | "skipped"
+    | "fetch_failed"
+    | "server_error"
+    | "client_error"
+    | "invalid_response",
+  status?: number,
+): AiClientResult {
+  return status === undefined
+    ? { ok: false, reason }
+    : { ok: false, reason, status };
+}
 
 describe("generateReply", () => {
   it("join event returns greeting", () => {
@@ -64,7 +83,7 @@ describe("generateReply", () => {
   });
 
   it("user 1:1: passes user:{id} sessionKey to AI", () => {
-    const ai = vi.fn(() => "あかはね〜、今日も元気だよ〜！");
+    const ai = vi.fn(() => aiReply("あかはね〜、今日も元気だよ〜！"));
     const fallback = vi.fn(() => "(should not be called)");
     const reply = generateReply(
       {
@@ -81,7 +100,7 @@ describe("generateReply", () => {
   });
 
   it("group mention: passes group:{id} sessionKey to AI", () => {
-    const ai = vi.fn(() => "ぼくはね〜、グループでも元気〜！");
+    const ai = vi.fn(() => aiReply("ぼくはね〜、グループでも元気〜！"));
     const reply = generateReply(
       {
         eventType: "message",
@@ -113,7 +132,7 @@ describe("generateReply", () => {
   });
 
   it("custom sessionKeyBuilder is used when provided", () => {
-    const ai = vi.fn(() => "ok");
+    const ai = vi.fn(() => aiReply("ok"));
     const sessionKeyBuilder = vi.fn(() => "override:Z");
     generateReply(
       {
@@ -129,7 +148,7 @@ describe("generateReply", () => {
   });
 
   it("AI failure (null) → fallback is used (sessionKey path)", () => {
-    const ai = vi.fn(() => null);
+    const ai = vi.fn(() => aiFailure("fetch_failed"));
     const fallback = vi.fn(() => "random!");
     const reply = generateReply(
       {
@@ -146,8 +165,8 @@ describe("generateReply", () => {
     expect(reply).toBe("random!");
   });
 
-  it("AI returns empty string → fallback is used", () => {
-    const ai = vi.fn(() => "");
+  it("AI invalid response → fallback is used", () => {
+    const ai = vi.fn(() => aiFailure("invalid_response", 200));
     const fallback = vi.fn(() => "random!");
     const reply = generateReply(
       {
@@ -159,5 +178,25 @@ describe("generateReply", () => {
       { ai, fallback },
     );
     expect(reply).toBe("random!");
+  });
+
+  it("AI 5xx response → server error fallback is used", () => {
+    const ai = vi.fn(() => aiFailure("server_error", 502));
+    const fallback = vi.fn(() => "random!");
+    const serverErrorFallback = vi.fn(
+      () => "あかはお昼寝しちゃった…むにゃむにゃ",
+    );
+    const reply = generateReply(
+      {
+        eventType: "message",
+        userMessage: "なんか喋って",
+        isBotMentioned: true,
+        source: USER_SOURCE,
+      },
+      { ai, fallback, serverErrorFallback },
+    );
+    expect(reply).toBe("あかはお昼寝しちゃった…むにゃむにゃ");
+    expect(serverErrorFallback).toHaveBeenCalledOnce();
+    expect(fallback).not.toHaveBeenCalled();
   });
 });

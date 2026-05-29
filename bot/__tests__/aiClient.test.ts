@@ -1,7 +1,7 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import "./setup.js";
 import { TestConstants } from "./setup.js";
-import { chatWithAi } from "../src/aiClient.js";
+import { chatWithAi, chatWithAiResult } from "../src/aiClient.js";
 
 const fetchMock = vi.fn();
 
@@ -58,6 +58,24 @@ describe("chatWithAi", () => {
   it("returns null on non-200 response", () => {
     fetchMock.mockReturnValue(fakeResponse(502, { error: "genai_failed" }));
     expect(chatWithAi("hi", "user:U123")).toBeNull();
+  });
+
+  it("returns server_error result on 5xx response", () => {
+    fetchMock.mockReturnValue(fakeResponse(502, { error: "genai_failed" }));
+    expect(chatWithAiResult("hi", "user:U123")).toEqual({
+      ok: false,
+      reason: "server_error",
+      status: 502,
+    });
+  });
+
+  it("returns client_error result on 4xx response", () => {
+    fetchMock.mockReturnValue(fakeResponse(400, { error: "invalid_request" }));
+    expect(chatWithAiResult("hi", "user:U123")).toEqual({
+      ok: false,
+      reason: "client_error",
+      status: 400,
+    });
   });
 
   it("returns null when reply is empty string", () => {

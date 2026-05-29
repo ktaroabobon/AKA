@@ -24,3 +24,8 @@ export function sayRandom(): string {
   const idx = Math.floor(Math.random() * randomMessageList.length);
   return randomMessageList[idx];
 }
+
+/** AI サーバが 5xx を返したときの専用フォールバック。 */
+export function sayAiServerError(): string {
+  return "あかはお昼寝しちゃった…むにゃむにゃ";
+}

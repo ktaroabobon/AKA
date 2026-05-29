@@ -10,7 +10,7 @@ import type { Env } from "./config/env.js";
 
 export function createApp(env: Env) {
   const logger = createLogger(env);
-  const genaiService = createGenaiService(env);
+  const genaiService = createGenaiService(env, logger);
   const sessionService = createSessionService(getFirestore());
 
   const app = new Hono();

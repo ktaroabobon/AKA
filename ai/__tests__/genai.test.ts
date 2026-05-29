@@ -57,6 +57,7 @@ import {
 import { akaSystemInstruction } from "../src/prompts/aka.js";
 import type { ConversationMessage } from "../src/services/session.js";
 import type { Env } from "../src/config/env.js";
+import type { Logger } from "../src/lib/logger.js";
 
 function makeEnv(overrides: Partial<Env> = {}): Env {
   return {
@@ -68,6 +69,17 @@ function makeEnv(overrides: Partial<Env> = {}): Env {
     FIRESTORE_DATABASE_ID: "(default)",
     ...overrides,
   };
+}
+
+function makeLogger(): Logger {
+  return {
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    debug: vi.fn(),
+    fatal: vi.fn(),
+    trace: vi.fn(),
+  } as unknown as Logger;
 }
 
 // base64("test-api-key") = "dGVzdC1hcGkta2V5"
@@ -108,6 +120,30 @@ describe("GenaiService.generate", () => {
     expect(reply).toBe("あかはねー、元気だよ！");
     expect(sendMessage).toHaveBeenCalledTimes(1);
     expect(sendMessage).toHaveBeenCalledWith({ message: "やっほー" });
+  });
+
+  it("正常応答を model / attempt / status / fallbackUsed / durationMs 付きで構造化ログに出す", async () => {
+    const { sendMessage } = await getMocks();
+    sendMessage.mockResolvedValueOnce({
+      text: "あかはねー、元気だよ！",
+      candidates: [{ finishReason: "STOP" }],
+    });
+    const logger = makeLogger();
+
+    const service = createGenaiService(makeEnv(), logger);
+    await service.generate(makeInput());
+
+    expect(logger.info).toHaveBeenCalledWith(
+      expect.objectContaining({
+        model: "gemini-test-model",
+        attempt: 1,
+        status: "success",
+        fallbackUsed: false,
+        durationMs: expect.any(Number),
+        finishReason: "STOP",
+      }),
+      "genai attempt completed",
+    );
   });
 
   it("chats.create に systemInstruction と safetySettings 4 カテゴリ (BLOCK_MEDIUM_AND_ABOVE) が渡される (Req 4.1, 4.2)", async () => {
@@ -232,5 +268,29 @@ describe("GenaiService.generate", () => {
     await expect(service.generate(makeInput())).rejects.toMatchObject({
       cause,
     });
+  });
+
+  it("Gemini 呼び出し失敗を statusCode 付きで構造化ログに出す", async () => {
+    const cause = { status: 503, message: "high demand" };
+    const { sendMessage } = await getMocks();
+    sendMessage.mockRejectedValueOnce(cause);
+    const logger = makeLogger();
+
+    const service = createGenaiService(makeEnv(), logger);
+
+    await expect(service.generate(makeInput())).rejects.toBeInstanceOf(
+      GenaiServiceError,
+    );
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        model: "gemini-test-model",
+        attempt: 1,
+        status: "error",
+        fallbackUsed: false,
+        durationMs: expect.any(Number),
+        upstreamStatusCode: 503,
+      }),
+      "genai attempt failed",
+    );
   });
 });

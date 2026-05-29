@@ -5,8 +5,8 @@
  *   でセッションを毎リクエスト生成し、`chat.sendMessage({ message: userText })` で応答取得
  * - `safetySettings` は 4 カテゴリ (HARASSMENT / HATE_SPEECH / SEXUALLY_EXPLICIT /
  *   DANGEROUS_CONTENT) を `BLOCK_MEDIUM_AND_ABOVE` で固定 (Req 4.2)
- * - `GEMINI_MODEL` を primary とし、`GEMINI_FALLBACK_MODELS` をカンマ区切りの
- *   fallback 候補として 429/5xx/ネットワーク系の一過性失敗時だけ順番に試す。
+ * - `GEMINI_MODELS` をカンマ区切りの候補一覧として、429/5xx/ネットワーク系の
+ *   一過性失敗時だけ先頭から順番に試す。
  * - SAFETY ブロック (`finishReason === SAFETY`)・空 candidates・空 text は
  *   `GenaiSafetyBlockedError` を投げる。route 層が捕捉して履歴に保存せず、
  *   中立メッセージを返す (Req 4.3)
@@ -129,12 +129,8 @@ function logAttempt(
 }
 
 function getModelCandidates(env: Env): string[] {
-  const models = [
-    env.GEMINI_MODEL,
-    ...env.GEMINI_FALLBACK_MODELS.split(","),
-  ].map((model) => model.trim());
   const seen = new Set<string>();
-  return models.filter((model) => {
+  return env.GEMINI_MODELS.filter((model) => {
     if (model.length === 0 || seen.has(model)) return false;
     seen.add(model);
     return true;

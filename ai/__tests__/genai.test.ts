@@ -63,8 +63,7 @@ function makeEnv(overrides: Partial<Env> = {}): Env {
   return {
     PORT: 8080,
     LOG_LEVEL: "info",
-    GEMINI_MODEL: "gemini-test-model",
-    GEMINI_FALLBACK_MODELS: "",
+    GEMINI_MODELS: ["gemini-test-model"],
     NODE_ENV: "test",
     GCP_PROJECT_ID: "test-project",
     FIRESTORE_DATABASE_ID: "(default)",
@@ -295,7 +294,7 @@ describe("GenaiService.generate", () => {
     );
   });
 
-  it("retryable error の場合は fallback model を順番に試す", async () => {
+  it("retryable error の場合は GEMINI_MODELS を上から順番に試す", async () => {
     const { sendMessage, create } = await getMocks();
     sendMessage
       .mockRejectedValueOnce({ status: 503, message: "high demand" })
@@ -306,7 +305,7 @@ describe("GenaiService.generate", () => {
     const logger = makeLogger();
 
     const service = createGenaiService(
-      makeEnv({ GEMINI_FALLBACK_MODELS: "gemini-fallback-1" }),
+      makeEnv({ GEMINI_MODELS: ["gemini-test-model", "gemini-next-model"] }),
       logger,
     );
     const reply = await service.generate(makeInput());
@@ -317,7 +316,7 @@ describe("GenaiService.generate", () => {
       model: "gemini-test-model",
     });
     expect(create.mock.calls[1]?.[0]).toMatchObject({
-      model: "gemini-fallback-1",
+      model: "gemini-next-model",
     });
     expect(logger.warn).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -331,7 +330,7 @@ describe("GenaiService.generate", () => {
     );
     expect(logger.info).toHaveBeenCalledWith(
       expect.objectContaining({
-        model: "gemini-fallback-1",
+        model: "gemini-next-model",
         attempt: 2,
         status: "success",
         fallbackUsed: true,
@@ -340,12 +339,12 @@ describe("GenaiService.generate", () => {
     );
   });
 
-  it("non-retryable error の場合は fallback model を試さない", async () => {
+  it("non-retryable error の場合は後続 model を試さない", async () => {
     const { sendMessage, create } = await getMocks();
     sendMessage.mockRejectedValueOnce({ status: 400, message: "bad request" });
 
     const service = createGenaiService(
-      makeEnv({ GEMINI_FALLBACK_MODELS: "gemini-fallback-1" }),
+      makeEnv({ GEMINI_MODELS: ["gemini-test-model", "gemini-next-model"] }),
     );
 
     await expect(service.generate(makeInput())).rejects.toBeInstanceOf(
@@ -357,7 +356,7 @@ describe("GenaiService.generate", () => {
     });
   });
 
-  it("SAFETY ブロックの場合は fallback model を試さない", async () => {
+  it("SAFETY ブロックの場合は後続 model を試さない", async () => {
     const { sendMessage, create } = await getMocks();
     sendMessage.mockResolvedValueOnce({
       text: "",
@@ -365,7 +364,7 @@ describe("GenaiService.generate", () => {
     });
 
     const service = createGenaiService(
-      makeEnv({ GEMINI_FALLBACK_MODELS: "gemini-fallback-1" }),
+      makeEnv({ GEMINI_MODELS: ["gemini-test-model", "gemini-next-model"] }),
     );
 
     await expect(service.generate(makeInput())).rejects.toBeInstanceOf(

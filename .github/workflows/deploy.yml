@@ -33,8 +33,7 @@ env:
   GCP_REGION: asia-northeast1
   SERVICE_NAME: aka-ai-api-service
   IMAGE: asia.gcr.io/aka-ai-api/aka-ai-api-service-image
-  GEMINI_MODEL: gemini-3.5-flash
-  GEMINI_FALLBACK_MODELS: gemini-2.5-flash
+  GEMINI_MODELS: gemini-3.5-flash,gemini-2.5-flash
   # Cloud Run コンテナが ADC として使うランタイム SA。
   # Firestore (`conversation` collection) への RW のため `roles/datastore.user`
   # を付与してある必要がある。詳細は docs/deploy-setup.md。
@@ -123,7 +122,7 @@ jobs:
             --region ${{ env.GCP_REGION }} \
             --service-account ${{ env.RUNTIME_SA }} \
             --allow-unauthenticated \
-            --set-env-vars NODE_ENV=production,GEMINI_MODEL=${{ env.GEMINI_MODEL }},GEMINI_FALLBACK_MODELS=${{ env.GEMINI_FALLBACK_MODELS }},GCP_PROJECT_ID=${{ env.GCP_PROJECT_ID }}
+            --set-env-vars "^|^NODE_ENV=production|GEMINI_MODELS=${{ env.GEMINI_MODELS }}|GCP_PROJECT_ID=${{ env.GCP_PROJECT_ID }}"
 
       - name: Smoke test (/health)
         run: |

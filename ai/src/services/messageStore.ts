@@ -14,7 +14,7 @@ const TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 日
 
 export type MessageSender = "user" | "bot";
 
-export interface StoredMessage {
+interface StoredMessage {
   readonly sessionKey: string;
   readonly sender: MessageSender;
   readonly text: string;

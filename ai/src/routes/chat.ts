@@ -9,16 +9,10 @@ import {
   type GenaiService,
 } from "../services/genai.js";
 import { SessionStoreError, type SessionService } from "../services/session.js";
-import type { MaskResult } from "../services/moderation.js";
+import type { MaskFn } from "../services/moderation.js";
 import { SAFETY_FALLBACK_MESSAGES } from "../prompts/aka.js";
 import { pickRandom } from "../lib/pickRandom.js";
 import type { Logger } from "../lib/logger.js";
-
-/**
- * 入力 / 出力 / 履歴保存の 3 ポイントで共有する mask 関数。
- * `services/moderation.ts` の `mask` を関数として注入することで Req 5.5 を担保する。
- */
-export type MaskFn = (text: string) => MaskResult;
 
 export interface ChatRouteDeps {
   moderation: MaskFn;

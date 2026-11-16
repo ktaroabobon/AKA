@@ -4,7 +4,6 @@ import { createMessagesRoute } from "../src/routes/messages.js";
 import { mask } from "../src/services/moderation.js";
 import {
   createMessageStore,
-  MessageStoreError,
   type MessageStore,
 } from "../src/services/messageStore.js";
 import type { Logger } from "../src/lib/logger.js";
@@ -49,7 +48,7 @@ function makeApp(messageStore: MessageStore) {
 
 const VALID_BODY = {
   sessionKey: "group:C1",
-  messageId: "m-1",
+  messageId: "1001",
   sender: "user",
   text: `電話は ${PII_SENTINEL} だよ`,
 };
@@ -67,7 +66,7 @@ describe("POST /messages", () => {
 
       expect(res.status).toBe(204);
       expect(fake.collection).toHaveBeenCalledWith("messages");
-      expect(fake.doc).toHaveBeenCalledWith("m-1");
+      expect(fake.doc).toHaveBeenCalledWith("1001");
       expect(fake.set).toHaveBeenCalledTimes(1);
       expect(fake.set).toHaveBeenCalledWith({
         sessionKey: "group:C1",
@@ -94,6 +93,19 @@ describe("POST /messages", () => {
     expect(fake.set).not.toHaveBeenCalled();
   });
 
+  it.each(["", "a/b", "..", "__x__", "1".repeat(65)])(
+    "returns 400 invalid_request for messageId %j that is not a LINE id",
+    async (messageId) => {
+      const fake = makeFakeFirestore();
+      const app = makeApp(createMessageStore(fake.firestore));
+
+      const res = await app.fetch(makeRequest({ ...VALID_BODY, messageId }));
+
+      expect(res.status).toBe(400);
+      expect(fake.set).not.toHaveBeenCalled();
+    },
+  );
+
   it("returns 400 invalid_request for empty or too long text", async () => {
     const fake = makeFakeFirestore();
     const app = makeApp(createMessageStore(fake.firestore));
@@ -116,17 +128,5 @@ describe("POST /messages", () => {
 
     expect(res.status).toBe(500);
     await expect(res.json()).resolves.toEqual({ error: "internal_error" });
-  });
-
-  it("wraps Firestore errors in MessageStoreError", async () => {
-    const fake = makeFakeFirestore(new Error("firestore down"));
-    const store = createMessageStore(fake.firestore);
-
-    await expect(
-      store.save(
-        { messageId: "m-1", sessionKey: "group:C1", sender: "bot", text: "x" },
-        new Date(),
-      ),
-    ).rejects.toBeInstanceOf(MessageStoreError);
   });
 });

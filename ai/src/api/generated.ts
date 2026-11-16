@@ -75,10 +75,18 @@ export interface components {
              *     `user:{userId}` のいずれかの形式で bot 側が組み立てる。
              */
             sessionKey: string;
-            /** @description ユーザーからの発話 */
+            /**
+             * @description ユーザーからの発話。`quotedMessageId` が無いときは空文字不可。
+             *     ある場合は空文字（メンションだけ）でもよいが、返信先が見つからなければ 400。
+             */
             prompt: string;
             /** @description base64 でエンコードされた Gemini API キー */
             encrypted_api_key: string;
+            /**
+             * @description 返信（引用）先の LINE メッセージ ID。`POST /messages` で保存済みかつ
+             *     同じ `sessionKey` のものだけが発話の文脈に使われる。
+             */
+            quotedMessageId?: string;
         };
         SaveMessageRequest: {
             /** @description ChatRequest.sessionKey と同じ形式 */

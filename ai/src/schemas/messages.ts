@@ -4,7 +4,7 @@ import { z } from "zod";
 const MAX_TEXT_LENGTH = 5000;
 
 // LINE のメッセージ ID は数字の文字列。doc id に `/`・`..`・`__x__` を入れないよう数字に限る
-const lineMessageIdSchema = z
+export const lineMessageIdSchema = z
   .string()
   .regex(/^[0-9]{1,64}$/, "messageId must be 1-64 digits");
 

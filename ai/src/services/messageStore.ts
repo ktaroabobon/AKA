@@ -5,6 +5,7 @@
  * マスク後のテキストだけを 7 日間保存しておく (#75)。
  * - ドキュメント形: `{ sessionKey, sender: "user" | "bot", text, expiresAt }`
  * - `expiresAt` は保存時刻 + 7 日 (TTL ポリシーが消去対象とする)
+ * - `get` は期限切れ (TTL の削除は遅れることがある) を見つからない扱いにする
  * - Firestore I/O 失敗は `MessageStoreError` に包んで投げる
  */
 import { Firestore, Timestamp } from "@google-cloud/firestore";
@@ -14,7 +15,7 @@ const TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 日
 
 export type MessageSender = "user" | "bot";
 
-interface StoredMessage {
+export interface StoredMessage {
   readonly sessionKey: string;
   readonly sender: MessageSender;
   readonly text: string;
@@ -38,6 +39,7 @@ export interface SaveMessageInput {
 
 export interface MessageStore {
   save(input: SaveMessageInput, now: Date): Promise<void>;
+  get(messageId: string, now: Date): Promise<StoredMessage | null>;
 }
 
 export function createMessageStore(firestore: Firestore): MessageStore {
@@ -56,6 +58,20 @@ export function createMessageStore(firestore: Firestore): MessageStore {
           cause,
         });
       }
+    },
+
+    async get(messageId, now) {
+      let snapshot;
+      try {
+        snapshot = await firestore.collection(COLLECTION).doc(messageId).get();
+      } catch (cause) {
+        throw new MessageStoreError(`Failed to read messages/${messageId}`, {
+          cause,
+        });
+      }
+      const data = snapshot.data() as StoredMessage | undefined;
+      if (!data || data.expiresAt.toMillis() <= now.getTime()) return null;
+      return data;
     },
   };
 }

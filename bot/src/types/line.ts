@@ -25,6 +25,8 @@ export interface LineTextMessage {
   type: "text";
   text: string;
   mention?: LineMentionee[] extends never ? never : LineMessageMention;
+  /** 返信（引用）先のメッセージ ID。本文は Webhook に入らない。 */
+  quotedMessageId?: string;
 }
 
 export type LineMessage = LineTextMessage | { id: string; type: string };

@@ -54,8 +54,10 @@ export function saveMessage(input: SaveMessageRequest): void {
 export function chatWithAiResult(
   prompt: string,
   sessionKey: string,
+  quotedMessageId?: string,
 ): AiClientResult {
-  if (!prompt || prompt.trim().length === 0) {
+  // 本文が空でも返信先があれば AI に投げる (返信先について応答させる #75)
+  if ((!prompt || prompt.trim().length === 0) && !quotedMessageId) {
     return { ok: false, reason: "skipped" };
   }
   if (!sessionKey || sessionKey.length === 0) {
@@ -72,6 +74,7 @@ export function chatWithAiResult(
     sessionKey,
     prompt,
     encrypted_api_key: encryptedApiKey,
+    ...(quotedMessageId ? { quotedMessageId } : {}),
   };
 
   let response: GoogleAppsScript.URL_Fetch.HTTPResponse;

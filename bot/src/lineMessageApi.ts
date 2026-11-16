@@ -124,6 +124,7 @@ export function doPost(
     userMessage: mention.userMessage,
     isBotMentioned: mention.isBotMentioned,
     source: event.source,
+    quotedMessageId: textMessage?.quotedMessageId,
   });
 
   let result: number | string | null = null;

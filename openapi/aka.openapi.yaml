@@ -112,12 +112,19 @@ components:
             `user:{userId}` のいずれかの形式で bot 側が組み立てる。
         prompt:
           type: string
-          minLength: 1
-          description: ユーザーからの発話
+          description: |
+            ユーザーからの発話。`quotedMessageId` が無いときは空文字不可。
+            ある場合は空文字（メンションだけ）でもよいが、返信先が見つからなければ 400。
         encrypted_api_key:
           type: string
           minLength: 1
           description: base64 でエンコードされた Gemini API キー
+        quotedMessageId:
+          type: string
+          pattern: "^[0-9]{1,64}$"
+          description: |
+            返信（引用）先の LINE メッセージ ID。`POST /messages` で保存済みかつ
+            同じ `sessionKey` のものだけが発話の文脈に使われる。
     SaveMessageRequest:
       type: object
       required: [sessionKey, messageId, sender, text]

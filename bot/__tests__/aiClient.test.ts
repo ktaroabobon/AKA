@@ -36,6 +36,7 @@ describe("chatWithAi", () => {
     const body = JSON.parse(options.payload as string);
     expect(body.prompt).toBe("おはよう");
     expect(body.sessionKey).toBe("user:U123");
+    expect(body).not.toHaveProperty("quotedMessageId");
     const expectedEncoded = Buffer.from(
       TestConstants.GEMINI_API_KEY,
       "utf-8",
@@ -93,5 +94,17 @@ describe("chatWithAi", () => {
       throw new Error("network down");
     });
     expect(chatWithAi("hi", "user:U123")).toBeNull();
+  });
+
+  it("sends quotedMessageId and allows an empty prompt with it (#75)", () => {
+    fetchMock.mockReturnValue(fakeResponse(200, { reply: "ok" }));
+
+    expect(chatWithAiResult("", "group:C1", "q-1")).toEqual({
+      ok: true,
+      reply: "ok",
+    });
+    const body = JSON.parse(fetchMock.mock.calls[0][1].payload as string);
+    expect(body.prompt).toBe("");
+    expect(body.quotedMessageId).toBe("q-1");
   });
 });

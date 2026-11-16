@@ -43,6 +43,7 @@ export function createApp(env: Env) {
     createChatRoute({
       moderation: mask,
       sessionService,
+      messageStore,
       genaiService,
       logger,
     }),

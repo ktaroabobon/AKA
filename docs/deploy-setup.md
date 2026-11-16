@@ -246,11 +246,13 @@ GitHub の Actions タブから **Deploy AKA** (`.github/workflows/deploy.yml`) 
 - 入力 `ref` にデプロイ対象のブランチ / タグ / SHA を指定（通常は `master`）
 - `Deploy AKA` 内で **jobs.ai → jobs.bot** の順に直列実行される
   (bot は新しい ai の API に依存するため、ai の反映を確認してから bot を公開する)
-  - `jobs.ai`: WIF 認証 → `gcloud builds submit` → `gcloud run deploy`
+  - `jobs.ai`: `GAS_DEPLOYMENT_ID` の登録確認 → WIF 認証 → `gcloud builds submit`
+    → `gcloud run deploy` (commit SHA タグのイメージ)
     → Cloud Run service URL の `/health` に対し smoke check (curl で HTTP コード確認)
-  - `jobs.bot`: `needs: ai` 付きで clasp credentials を復元し `pnpm --filter bot build`
+  - `jobs.bot`: `needs: ai` 付きで、ai と同じ commit を checkout して clasp credentials を復元し `pnpm --filter bot build`
     → `clasp push --force` → `clasp update-deployment <GAS_DEPLOYMENT_ID>`
     (詳細は 7 章)
+- 同時に複数回 dispatch した場合は、先の実行が終わるまで後の実行は待つ
 - `jobs.ai` が失敗した場合は `jobs.bot` は実行されず (bot は公開されない) workflow が失敗する
 - `/health` smoke check が 2xx 以外なら workflow は失敗で終了し、bot も公開されない
 
@@ -323,9 +325,15 @@ deploymentId は変わらないので Web App URL も変わらず、LINE 側の�
 
 4 章と同じ画面で Secret `GAS_DEPLOYMENT_ID` を登録する。値は LINE の Webhook URL
 (`https://script.google.com/macros/s/<deploymentId>/exec`) の `/macros/s/` と
-`/exec` の間の文字列。未登録のまま `Deploy AKA` を回すと `jobs.bot` の
-「Update GAS deployment to a new version」ステップが失敗する
-(push 済みでも Web App のバージョンは進まない)。
+`/exec` の間の文字列。未登録のまま `Deploy AKA` を回すと、ai も bot も
+反映する前に `jobs.ai` の最初のステップ「Check GAS_DEPLOYMENT_ID is set」で失敗する。
+
+### バージョン数の上限
+
+Apps Script のバージョンは 1 プロジェクトあたり 200 個まで。`Deploy AKA` を回すたびに
+1 つ増えるので、上限に達すると `clasp update-deployment` が失敗する。近づいたら
+GAS エディタの **プロジェクト履歴** (左メニューの時計アイコン) で、どのデプロイにも
+使われていない古いバージョンを削除する。
 
 ### 戻すとき
 

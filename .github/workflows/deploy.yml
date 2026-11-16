@@ -26,6 +26,12 @@ on:
         type: string
         default: master
 
+# 2 回目の dispatch は 1 回目の完了を待つ。並行すると ai と bot が
+# 別 commit の組み合わせで本番に残りうるため。
+concurrency:
+  group: deploy-aka
+  cancel-in-progress: false
+
 permissions:
   id-token: write
   contents: read
@@ -46,7 +52,22 @@ jobs:
     name: ai → Cloud Run
     runs-on: ubuntu-latest
     environment: production
+    # bot は ai と同じ commit を公開する (ref がブランチだと、Cloud Build の間に
+    # 先へ進んだ commit を bot だけが拾ってしまうため)
+    outputs:
+      sha: ${{ steps.tag.outputs.sha }}
     steps:
+      # bot の公開に必要な Secret が無いと、ai だけ本番に反映されて止まる。
+      # 何も反映しないうちに失敗させる。
+      - name: Check GAS_DEPLOYMENT_ID is set
+        env:
+          GAS_DEPLOYMENT_ID: ${{ secrets.GAS_DEPLOYMENT_ID }}
+        run: |
+          if [ -z "$GAS_DEPLOYMENT_ID" ]; then
+            echo "::error::Secret GAS_DEPLOYMENT_ID is not set. Set it to the deploymentId of the Web App used by the LINE Webhook (see docs/deploy-setup.md)."
+            exit 1
+          fi
+
       - uses: actions/checkout@v7
         with:
           ref: ${{ inputs.ref }}
@@ -65,7 +86,9 @@ jobs:
 
       - name: Resolve image tag (commit SHA)
         id: tag
-        run: echo "value=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+        run: |
+          echo "value=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
       - name: Build & push image (Cloud Build)
         run: |
@@ -77,7 +100,7 @@ jobs:
       - name: Deploy to Cloud Run
         run: |
           gcloud run deploy ${{ env.SERVICE_NAME }} \
-            --image ${{ env.IMAGE }}:latest \
+            --image ${{ env.IMAGE }}:${{ steps.tag.outputs.value }} \
             --region ${{ env.GCP_REGION }} \
             --service-account ${{ env.RUNTIME_SA }} \
             --allow-unauthenticated \
@@ -102,7 +125,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: ${{ inputs.ref }}
+          ref: ${{ needs.ai.outputs.sha }}
 
       - uses: pnpm/action-setup@v6
         with:
@@ -144,10 +167,6 @@ jobs:
         env:
           GAS_DEPLOYMENT_ID: ${{ secrets.GAS_DEPLOYMENT_ID }}
         run: |
-          if [ -z "$GAS_DEPLOYMENT_ID" ]; then
-            echo "::error::Secret GAS_DEPLOYMENT_ID is not set. Set it to the deploymentId of the Web App used by the LINE Webhook (see docs/deploy-setup.md)."
-            exit 1
-          fi
           SHORT_SHA=$(git rev-parse --short HEAD)
           # clasp v3 は API の INVALID_ARGUMENT などを表示しても exit 0 で終わることが
           # あるため、--json の出力に versionNumber が入っていることで成功を判定する。

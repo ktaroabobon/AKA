@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import {
+  findMessageParamSchema,
   findMessageQuerySchema,
   saveMessageRequestSchema,
 } from "../schemas/messages.js";
@@ -9,7 +10,7 @@ import {
   MessageStoreError,
   type MessageStore,
 } from "../services/messageStore.js";
-import type { MaskFn } from "./chat.js";
+import type { MaskFn } from "../services/moderation.js";
 import type { Logger } from "../lib/logger.js";
 
 export interface MessagesRouteDeps {
@@ -70,6 +71,14 @@ export function createMessagesRoute({
   // bot が「返信先のテキストがあるか」だけを確かめる (#76)。本文は返さない。
   app.get(
     "/messages/:messageId",
+    zValidator("param", findMessageParamSchema, (result, c) => {
+      if (!result.success) {
+        return c.json(
+          { error: "invalid_request", detail: z.flattenError(result.error) },
+          400,
+        );
+      }
+    }),
     zValidator("query", findMessageQuerySchema, (result, c) => {
       if (!result.success) {
         return c.json(
@@ -79,7 +88,7 @@ export function createMessagesRoute({
       }
     }),
     async (c) => {
-      const messageId = c.req.param("messageId");
+      const { messageId } = c.req.valid("param");
       const { sessionKey } = c.req.valid("query");
       try {
         const found = await messageStore.get(messageId, new Date());

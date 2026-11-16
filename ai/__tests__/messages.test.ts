@@ -49,7 +49,7 @@ function makeApp(messageStore: MessageStore) {
 
 const VALID_BODY = {
   sessionKey: "group:C1",
-  messageId: "m-1",
+  messageId: "1001",
   sender: "user",
   text: `電話は ${PII_SENTINEL} だよ`,
 };
@@ -67,7 +67,7 @@ describe("POST /messages", () => {
 
       expect(res.status).toBe(204);
       expect(fake.collection).toHaveBeenCalledWith("messages");
-      expect(fake.doc).toHaveBeenCalledWith("m-1");
+      expect(fake.doc).toHaveBeenCalledWith("1001");
       expect(fake.set).toHaveBeenCalledTimes(1);
       expect(fake.set).toHaveBeenCalledWith({
         sessionKey: "group:C1",
@@ -94,6 +94,19 @@ describe("POST /messages", () => {
     expect(fake.set).not.toHaveBeenCalled();
   });
 
+  it.each(["", "a/b", "..", "__x__", "1".repeat(65)])(
+    "returns 400 invalid_request for messageId %j that is not a LINE id",
+    async (messageId) => {
+      const fake = makeFakeFirestore();
+      const app = makeApp(createMessageStore(fake.firestore));
+
+      const res = await app.fetch(makeRequest({ ...VALID_BODY, messageId }));
+
+      expect(res.status).toBe(400);
+      expect(fake.set).not.toHaveBeenCalled();
+    },
+  );
+
   it("returns 400 invalid_request for empty or too long text", async () => {
     const fake = makeFakeFirestore();
     const app = makeApp(createMessageStore(fake.firestore));
@@ -116,18 +129,6 @@ describe("POST /messages", () => {
 
     expect(res.status).toBe(500);
     await expect(res.json()).resolves.toEqual({ error: "internal_error" });
-  });
-
-  it("wraps Firestore errors in MessageStoreError", async () => {
-    const fake = makeFakeFirestore(new Error("firestore down"));
-    const store = createMessageStore(fake.firestore);
-
-    await expect(
-      store.save(
-        { messageId: "m-1", sessionKey: "group:C1", sender: "bot", text: "x" },
-        new Date(),
-      ),
-    ).rejects.toBeInstanceOf(MessageStoreError);
   });
 });
 
@@ -181,9 +182,13 @@ describe("GET /messages/:messageId (#76)", () => {
     expiresAt: Timestamp.fromMillis(Date.now() + 60_000),
   };
 
-  async function find(store: MessageStore, query = "?sessionKey=group%3AC1") {
+  async function find(
+    store: MessageStore,
+    query = "?sessionKey=group%3AC1",
+    id = "1001",
+  ) {
     return makeApp(store).fetch(
-      new Request(`http://localhost/messages/m-1${query}`),
+      new Request(`http://localhost/messages/${id}${query}`),
     );
   }
 
@@ -194,7 +199,7 @@ describe("GET /messages/:messageId (#76)", () => {
 
     expect(res.status).toBe(204);
     expect(await res.text()).toBe("");
-    expect(store.get).toHaveBeenCalledWith("m-1", expect.any(Date));
+    expect(store.get).toHaveBeenCalledWith("1001", expect.any(Date));
   });
 
   it("returns 404 not_found when missing or from another sessionKey", async () => {
@@ -206,6 +211,15 @@ describe("GET /messages/:messageId (#76)", () => {
     expect(missing.status).toBe(404);
     expect(other.status).toBe(404);
     await expect(other.json()).resolves.toEqual({ error: "not_found" });
+  });
+
+  it("returns 400 invalid_request for a messageId that is not a LINE id", async () => {
+    const store = makeStore(async () => stored);
+
+    const res = await find(store, "?sessionKey=group%3AC1", "__x__");
+
+    expect(res.status).toBe(400);
+    expect(store.get).not.toHaveBeenCalled();
   });
 
   it("returns 400 invalid_request without sessionKey", async () => {

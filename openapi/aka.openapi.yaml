@@ -104,7 +104,7 @@ paths:
           required: true
           schema:
             type: string
-            minLength: 1
+            pattern: "^[0-9]{1,64}$"
           description: LINE のメッセージ ID
         - name: sessionKey
           in: query
@@ -164,7 +164,7 @@ components:
           description: base64 でエンコードされた Gemini API キー
         quotedMessageId:
           type: string
-          minLength: 1
+          pattern: "^[0-9]{1,64}$"
           description: |
             返信（引用）先の LINE メッセージ ID。`POST /messages` で保存済みかつ
             同じ `sessionKey` のものだけが発話の文脈に使われる。
@@ -194,8 +194,8 @@ components:
           description: ChatRequest.sessionKey と同じ形式
         messageId:
           type: string
-          minLength: 1
-          description: LINE のメッセージ ID
+          pattern: "^[0-9]{1,64}$"
+          description: LINE のメッセージ ID（数字の文字列。Firestore の doc id に使う）
         sender:
           type: string
           enum: [user, bot]

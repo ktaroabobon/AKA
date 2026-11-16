@@ -6,7 +6,7 @@ import {
   MessageStoreError,
   type MessageStore,
 } from "../services/messageStore.js";
-import type { MaskFn } from "./chat.js";
+import type { MaskFn } from "../services/moderation.js";
 import type { Logger } from "../lib/logger.js";
 
 export interface MessagesRouteDeps {

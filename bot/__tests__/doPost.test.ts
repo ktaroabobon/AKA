@@ -171,6 +171,51 @@ describe("doPost: message saving (#75)", () => {
     expect(post(event)).toBeNull();
     expect(callsTo(CHAT_URL)).toEqual([]);
   });
+
+  it("saves the user message after the reply is sent", () => {
+    routeFetch({
+      [CHAT_URL]: () => fakeResponse(200, { reply: "雨もいいね！" }),
+      [LINE_REPLY_URL]: () =>
+        fakeResponse(200, { sentMessages: [{ id: "msg-out" }] }),
+    });
+
+    post(groupTextEvent("@紅 雨だね", true));
+
+    const urls = fetchMock.mock.calls.map(([u]) => u);
+    expect(urls.indexOf(LINE_REPLY_URL)).toBeLessThan(
+      urls.indexOf(MESSAGES_URL),
+    );
+  });
+
+  it.each([
+    ["no sentMessages", { other: 1 }],
+    ["a non-JSON body", "<<not json>>"],
+  ])(
+    "does not save the bot reply when the reply API returns %s",
+    (_l, body) => {
+      routeFetch({
+        [CHAT_URL]: () => fakeResponse(200, { reply: "雨もいいね！" }),
+        [LINE_REPLY_URL]: () => fakeResponse(200, body),
+      });
+
+      post(groupTextEvent("@紅 雨だね", true));
+
+      expect(callsTo(MESSAGES_URL).map((b) => b.sender)).toEqual(["user"]);
+    },
+  );
+
+  it("does not save without a sessionKey or for a non-text message", () => {
+    routeFetch({});
+    const noKey = groupTextEvent("今日は雨だね", false);
+    noKey.source = { type: "group" };
+    const sticker = groupTextEvent("", false);
+    sticker.message = { id: "s-1", type: "sticker" };
+
+    post(noKey);
+    post(sticker);
+
+    expect(callsTo(MESSAGES_URL)).toEqual([]);
+  });
 });
 
 describe("doPost: quoted image (#76)", () => {

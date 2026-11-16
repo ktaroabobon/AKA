@@ -12,6 +12,7 @@ servers:
 tags:
   - name: Health
   - name: Chat
+  - name: Messages
 paths:
   /health:
     get:
@@ -61,6 +62,34 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /messages:
+    post:
+      operationId: postMessages
+      tags: [Messages]
+      summary: LINE のメッセージを保存する（返信先の本文を後から読むため）
+      description: |
+        `text` はマスク後の文字列だけが `messages/{messageId}` に 7 日間保存される。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SaveMessageRequest"
+      responses:
+        "204":
+          description: 保存した
+        "400":
+          description: 不正なリクエスト
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: 内部エラー（Firestore の失敗など）
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 components:
   schemas:
     HealthResponse:
@@ -89,6 +118,27 @@ components:
           type: string
           minLength: 1
           description: base64 でエンコードされた Gemini API キー
+    SaveMessageRequest:
+      type: object
+      required: [sessionKey, messageId, sender, text]
+      properties:
+        sessionKey:
+          type: string
+          minLength: 1
+          description: ChatRequest.sessionKey と同じ形式
+        messageId:
+          type: string
+          minLength: 1
+          description: LINE のメッセージ ID
+        sender:
+          type: string
+          enum: [user, bot]
+          description: 紅の発言なら bot、それ以外は user
+        text:
+          type: string
+          minLength: 1
+          maxLength: 5000
+          description: メッセージの本文（LINE のテキストの上限は 5000 文字）
     ChatResponse:
       type: object
       required: [reply]

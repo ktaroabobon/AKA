@@ -98,7 +98,8 @@ export interface components {
             sessionKey: string;
             /**
              * @description ユーザーからの発話。`quotedMessageId` / `quotedImage` が無いときは空文字不可。
-             *     ある場合は空文字（メンションだけ）でもよいが、返信先が見つからなければ 400。
+             *     `quotedImage` があれば空文字（メンションだけ）でもよい。
+             *     `quotedMessageId` だけの場合も空文字でよいが、返信先が見つからなければ 400。
              */
             prompt: string;
             /** @description base64 でエンコードされた Gemini API キー */
@@ -116,7 +117,11 @@ export interface components {
             quotedImage?: {
                 /** @enum {string} */
                 mimeType: "image/jpeg" | "image/png" | "image/webp" | "image/heic" | "image/heif";
-                /** @description base64 でエンコードした画像（5 MB を base64 にした長さが上限） */
+                /**
+                 * Format: byte
+                 * @description base64 でエンコードした画像（5 MB を base64 にした長さが上限。
+                 *     ai/src/schemas/chat.ts の MAX_IMAGE_BASE64_LENGTH と揃える）
+                 */
                 data: string;
             };
         };

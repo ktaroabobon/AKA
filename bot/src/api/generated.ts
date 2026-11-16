@@ -76,7 +76,7 @@ export interface components {
              */
             sessionKey: string;
             /**
-             * @description ユーザーからの発話。`quotedMessageId` が無いときは空文字不可。
+             * @description ユーザーからの発話。`quotedMessageId` / `quotedImage` が無いときは空文字不可。
              *     ある場合は空文字（メンションだけ）でもよいが、返信先が見つからなければ 400。
              */
             prompt: string;
@@ -87,6 +87,17 @@ export interface components {
              *     同じ `sessionKey` のものだけが発話の文脈に使われる。
              */
             quotedMessageId?: string;
+            /**
+             * @description 返信（引用）先の画像。bot が LINE の取得用 API から取ったもの。
+             *     その 1 回の応答にだけ Gemini へ渡し、保存しない（履歴には `[画像]` の印だけ）。
+             *     これがあれば `prompt` は空文字でもよい。
+             */
+            quotedImage?: {
+                /** @enum {string} */
+                mimeType: "image/jpeg" | "image/png" | "image/webp" | "image/heic" | "image/heif";
+                /** @description base64 でエンコードした画像（5 MB を base64 にした長さが上限） */
+                data: string;
+            };
         };
         SaveMessageRequest: {
             /** @description ChatRequest.sessionKey と同じ形式 */

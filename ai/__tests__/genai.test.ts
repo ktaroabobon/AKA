@@ -122,6 +122,22 @@ describe("GenaiService.generate", () => {
     expect(sendMessage).toHaveBeenCalledWith({ message: "やっほー" });
   });
 
+  it("画像があれば、発話のテキストと画像 (inlineData) を一緒に sendMessage に渡す (#76)", async () => {
+    const { sendMessage } = await getMocks();
+    sendMessage.mockResolvedValueOnce({
+      text: "うさぎの写真だね！",
+      candidates: [{ finishReason: "STOP" }],
+    });
+    const image = { mimeType: "image/jpeg", data: "aW1n" };
+
+    const service = createGenaiService(makeEnv());
+    await service.generate(makeInput({ userText: "これ何？", image }));
+
+    expect(sendMessage).toHaveBeenCalledWith({
+      message: [{ text: "これ何？" }, { inlineData: image }],
+    });
+  });
+
   it("正常応答を model / attempt / status / fallbackUsed / durationMs 付きで構造化ログに出す", async () => {
     const { sendMessage } = await getMocks();
     sendMessage.mockResolvedValueOnce({

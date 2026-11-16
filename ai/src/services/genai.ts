@@ -47,10 +47,18 @@ export class GenaiSafetyBlockedError extends GenaiServiceError {
   }
 }
 
+/** 返信先の画像 (#76)。その 1 回の sendMessage にだけ渡し、どこにも保存しない。 */
+export interface GenaiImage {
+  mimeType: string;
+  /** base64 */
+  data: string;
+}
+
 export interface GenaiGenerateInput {
   history: ConversationMessage[];
   userText: string;
   encryptedApiKey: string;
+  image?: GenaiImage;
 }
 
 export interface GenaiService {
@@ -147,6 +155,7 @@ async function generateWithModel(input: {
   model: string;
   history: ConversationMessage[];
   userText: string;
+  image?: GenaiImage;
   attempt: number;
   fallbackUsed: boolean;
   logger?: Logger;
@@ -163,7 +172,11 @@ async function generateWithModel(input: {
   let response;
   const startedAt = Date.now();
   try {
-    response = await chat.sendMessage({ message: input.userText });
+    response = await chat.sendMessage({
+      message: input.image
+        ? [{ text: input.userText }, { inlineData: input.image }]
+        : input.userText,
+    });
   } catch (cause) {
     // ApiKeyDecodeError は decodeApiKey からのみ伝播する想定だが念のため
     if (cause instanceof ApiKeyDecodeError) throw cause;
@@ -235,7 +248,7 @@ async function generateWithModel(input: {
 
 export function createGenaiService(env: Env, logger?: Logger): GenaiService {
   return {
-    async generate({ history, userText, encryptedApiKey }) {
+    async generate({ history, userText, encryptedApiKey, image }) {
       // ApiKeyDecodeError はそのまま投げる (route 層が 400 invalid_api_key として直接処理)
       const apiKey = decodeApiKey(encryptedApiKey);
       const ai = new GoogleGenAI({ apiKey });
@@ -249,6 +262,7 @@ export function createGenaiService(env: Env, logger?: Logger): GenaiService {
             model,
             history,
             userText,
+            image,
             attempt: index + 1,
             fallbackUsed: index > 0,
             logger,

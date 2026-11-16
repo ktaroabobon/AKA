@@ -34,20 +34,29 @@ export interface ChatRouteDeps {
 }
 
 /**
- * 返信先の発言と今の発話を、Gemini がどちらがどちらか分かる 1 つの発話にする。
+ * 返信先の発言・画像と今の発話を、Gemini がどれがどれか分かる 1 つの発話にする。
  * 返信先が無ければ今の発話をそのまま返す (従来どおり)。
+ * 画像は `[画像]` の印だけを入れる (この文字列は履歴にも入るため、画像のデータは含めない #76)。
  */
 function buildUserText(
   maskedPrompt: string,
   quoted: StoredMessage | null,
+  hasImage: boolean,
 ): string {
-  if (!quoted) return maskedPrompt;
-  const who = quoted.sender === "bot" ? "紅の発言" : "誰かの発言";
+  const parts: string[] = [];
+  if (quoted) {
+    const who = quoted.sender === "bot" ? "紅の発言" : "誰かの発言";
+    parts.push(`[返信先の${who}]\n${quoted.text}`);
+  }
+  if (hasImage) {
+    parts.push("[画像]\n（返信先は画像。添付の画像を見て答える）");
+  }
+  if (parts.length === 0) return maskedPrompt;
   const current =
     maskedPrompt.length > 0
       ? maskedPrompt
-      : "（本文なし。返信先の発言について話しかけている）";
-  return `[返信先の${who}]\n${quoted.text}\n\n[今の発話]\n${current}`;
+      : "（本文なし。返信先について話しかけている）";
+  return [...parts, `[今の発話]\n${current}`].join("\n\n");
 }
 
 export function createChatRoute({
@@ -90,8 +99,13 @@ export function createChatRoute({
       }
     }),
     async (c) => {
-      const { sessionKey, prompt, encrypted_api_key, quotedMessageId } =
-        c.req.valid("json");
+      const {
+        sessionKey,
+        prompt,
+        encrypted_api_key,
+        quotedMessageId,
+        quotedImage,
+      } = c.req.valid("json");
 
       // Step 1: 入力テキストをマスク (Req 5.1, 5.2, 5.5)
       const maskedInput = moderation(prompt);
@@ -102,13 +116,17 @@ export function createChatRoute({
 
       const quoted = await findQuoted(quotedMessageId, sessionKey, now);
       // 本文が空で返信先も無いなら、従来どおり話すことが無い
-      if (maskedInput.masked.length === 0 && !quoted) {
+      if (maskedInput.masked.length === 0 && !quoted && !quotedImage) {
         return c.json(
           { error: "invalid_request", message: "prompt must not be empty" },
           400,
         );
       }
-      const userText = buildUserText(maskedInput.masked, quoted);
+      const userText = buildUserText(
+        maskedInput.masked,
+        quoted,
+        quotedImage !== undefined,
+      );
 
       try {
         // Step 2: 履歴取得 (Req 3.1, 3.2)
@@ -123,6 +141,7 @@ export function createChatRoute({
             history,
             userText,
             encryptedApiKey: encrypted_api_key,
+            image: quotedImage,
           });
         } catch (err) {
           const geminiDurationMs = Date.now() - startedAt;
@@ -165,6 +184,11 @@ export function createChatRoute({
             sessionKey,
             historyTurns,
             quoted: quoted !== null,
+            // 画像のデータは出さない (mimeType と base64 の長さだけ)
+            quotedImage: quotedImage && {
+              mimeType: quotedImage.mimeType,
+              base64Length: quotedImage.data.length,
+            },
             geminiDurationMs,
             piiRedactions: piiRedactions + replyPii,
             profanityRedactions: profanityRedactions + replyProfanity,

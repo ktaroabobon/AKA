@@ -111,3 +111,87 @@ describe("chatWithAi", () => {
     expect(body.quotedMessageId).toBe("q-1");
   });
 });
+
+describe("chatWithAiResult: quoted message lookup and image (#76)", () => {
+  const LOOKUP_URL = `${TestConstants.AI_BASE_URL}/messages/2001?sessionKey=group%3AC1`;
+  const CONTENT_URL = "https://api-data.line.me/v2/bot/message/2001/content";
+  const CHAT_URL = `${TestConstants.AI_BASE_URL}/chat/genai`;
+  const PNG = {
+    getResponseCode: () => 200,
+    getHeaders: () => ({ "Content-Type": "image/png" }),
+    getContent: () => [1, 2, 3],
+  };
+
+  function route(lookup: () => unknown, content: () => unknown) {
+    fetchMock.mockImplementation((url: string) => {
+      if (url === LOOKUP_URL) return lookup();
+      if (url === CONTENT_URL) return content();
+      if (url === CHAT_URL) return fakeResponse(200, { reply: "ok" });
+      throw new Error(`unexpected ${url}`);
+    });
+  }
+  const urls = () => fetchMock.mock.calls.map(([u]) => u);
+  const chatBody = () =>
+    JSON.parse(
+      fetchMock.mock.calls.find(([u]) => u === CHAT_URL)![1].payload as string,
+    );
+  const throws = () => {
+    throw new Error("network down");
+  };
+
+  it("skips an empty prompt when neither quoted text nor image is found", () => {
+    route(
+      () => fakeResponse(404, ""),
+      () => fakeResponse(404, ""),
+    );
+
+    expect(chatWithAiResult("", "group:C1", "2001")).toEqual({
+      ok: false,
+      reason: "skipped",
+    });
+    expect(urls()).toEqual([LOOKUP_URL, CONTENT_URL]);
+  });
+
+  it("sends an empty prompt with only the image", () => {
+    route(
+      () => fakeResponse(404, ""),
+      () => PNG,
+    );
+
+    expect(chatWithAiResult("", "group:C1", "2001").ok).toBe(true);
+    expect(chatBody()).toMatchObject({
+      prompt: "",
+      quotedMessageId: "2001",
+      quotedImage: { mimeType: "image/png" },
+    });
+  });
+
+  it.each([
+    ["returns 5xx", () => fakeResponse(500, "")],
+    ["throws", throws],
+  ])(
+    "does not fetch the image and leaves the quote to ai when the lookup %s",
+    (_label, lookup) => {
+      route(lookup, () => PNG);
+
+      expect(chatWithAiResult("", "group:C1", "2001").ok).toBe(true);
+      expect(urls()).toEqual([LOOKUP_URL, CHAT_URL]);
+      expect(chatBody()).not.toHaveProperty("quotedImage");
+    },
+  );
+
+  it("answers without the image when the content fetch throws", () => {
+    route(() => fakeResponse(404, ""), throws);
+
+    expect(chatWithAiResult("これ何？", "group:C1", "2001").ok).toBe(true);
+    expect(chatBody()).not.toHaveProperty("quotedImage");
+  });
+
+  it("does not look up an empty quotedMessageId", () => {
+    route(throws, throws);
+
+    expect(chatWithAiResult("hi", "group:C1", "").ok).toBe(true);
+    expect(urls()).toEqual([CHAT_URL]);
+    expect(chatBody()).not.toHaveProperty("quotedMessageId");
+  });
+});

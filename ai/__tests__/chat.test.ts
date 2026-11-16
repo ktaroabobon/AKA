@@ -57,7 +57,10 @@ function makeGenai(overrides: Partial<GenaiService> = {}): GenaiService {
 function makeMessageStore(stored: StoredMessage | null = null): MessageStore {
   return {
     save: vi.fn(async () => undefined),
-    get: vi.fn(async () => stored),
+    // 実物と同じく、別の sessionKey の発言は返さない
+    get: vi.fn(async (_id: string, sessionKey: string) =>
+      stored?.sessionKey === sessionKey ? stored : null,
+    ),
   };
 }
 
@@ -314,7 +317,11 @@ describe("POST /chat/genai", () => {
         await postWithQuote(QUOTED);
 
       expect(res.status).toBe(200);
-      expect(messageStore.get).toHaveBeenCalledWith("2001", expect.any(Date));
+      expect(messageStore.get).toHaveBeenCalledWith(
+        "2001",
+        "group:C1",
+        expect.any(Date),
+      );
       const userText =
         "[返信先の誰かの発言]\n週末は海に行くよ\n\n[今の発話]\n［masked］この話どう思う？";
       expect(generate.mock.calls[0][0].userText).toBe(userText);

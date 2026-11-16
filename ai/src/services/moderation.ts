@@ -23,6 +23,9 @@ export interface MaskResult {
   };
 }
 
+/** route 層に注入する mask 関数の型 (入力 / 出力 / 保存の各ポイントで共有し Req 5.5 を担保)。 */
+export type MaskFn = (text: string) => MaskResult;
+
 function loadDictionary(filename: string): readonly string[] {
   // ESM の import.meta.url 基準で vendor ファイルを読む。バンドルや CWD に依存しない。
   const url = new URL(

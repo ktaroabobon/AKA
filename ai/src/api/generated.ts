@@ -38,6 +38,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * LINE のメッセージを保存する（返信先の本文を後から読むため）
+         * @description `text` はマスク後の文字列だけが `messages/{messageId}` に 7 日間保存される。
+         */
+        post: operations["postMessages"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -59,6 +79,19 @@ export interface components {
             prompt: string;
             /** @description base64 でエンコードされた Gemini API キー */
             encrypted_api_key: string;
+        };
+        SaveMessageRequest: {
+            /** @description ChatRequest.sessionKey と同じ形式 */
+            sessionKey: string;
+            /** @description LINE のメッセージ ID（数字の文字列。Firestore の doc id に使う） */
+            messageId: string;
+            /**
+             * @description 紅の発言なら bot、それ以外は user
+             * @enum {string}
+             */
+            sender: "user" | "bot";
+            /** @description メッセージの本文（LINE のテキストの上限は 5000 文字） */
+            text: string;
         };
         ChatResponse: {
             /** @description あかの応答テキスト */
@@ -143,6 +176,46 @@ export interface operations {
             };
             /** @description 上流 Gemini 呼び出し失敗 */
             502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    postMessages: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SaveMessageRequest"];
+            };
+        };
+        responses: {
+            /** @description 保存した */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 不正なリクエスト */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description 内部エラー（Firestore の失敗など） */
+            500: {
                 headers: {
                     [name: string]: unknown;
                 };

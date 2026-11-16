@@ -154,19 +154,34 @@ describe("MessageStore.get", () => {
 
   it("returns the stored message before expiresAt", async () => {
     const store = createMessageStore(makeReadFirestore(stored));
-    await expect(store.get("m-1", now)).resolves.toEqual(stored);
+    await expect(store.get("m-1", "group:C1", now)).resolves.toEqual(stored);
   });
 
-  it("returns null when expired or missing", async () => {
+  it("returns null when expired, missing or from another sessionKey", async () => {
     const expired = {
       ...stored,
       expiresAt: Timestamp.fromMillis(now.getTime() - 1),
     };
     await expect(
-      createMessageStore(makeReadFirestore(expired)).get("m-1", now),
+      createMessageStore(makeReadFirestore(expired)).get(
+        "m-1",
+        "group:C1",
+        now,
+      ),
     ).resolves.toBeNull();
     await expect(
-      createMessageStore(makeReadFirestore(undefined)).get("m-1", now),
+      createMessageStore(makeReadFirestore(undefined)).get(
+        "m-1",
+        "group:C1",
+        now,
+      ),
+    ).resolves.toBeNull();
+    await expect(
+      createMessageStore(makeReadFirestore(stored)).get(
+        "m-1",
+        "group:OTHER",
+        now,
+      ),
     ).resolves.toBeNull();
   });
 });
@@ -199,18 +214,18 @@ describe("GET /messages/:messageId (#76)", () => {
 
     expect(res.status).toBe(204);
     expect(await res.text()).toBe("");
-    expect(store.get).toHaveBeenCalledWith("1001", expect.any(Date));
+    expect(store.get).toHaveBeenCalledWith(
+      "1001",
+      "group:C1",
+      expect.any(Date),
+    );
   });
 
-  it("returns 404 not_found when missing or from another sessionKey", async () => {
-    const missing = await find(makeStore(async () => null));
-    const other = await find(
-      makeStore(async () => ({ ...stored, sessionKey: "group:OTHER" })),
-    );
+  it("returns 404 not_found when the store has no message for the sessionKey", async () => {
+    const res = await find(makeStore(async () => null));
 
-    expect(missing.status).toBe(404);
-    expect(other.status).toBe(404);
-    await expect(other.json()).resolves.toEqual({ error: "not_found" });
+    expect(res.status).toBe(404);
+    await expect(res.json()).resolves.toEqual({ error: "not_found" });
   });
 
   it("returns 400 invalid_request for a messageId that is not a LINE id", async () => {

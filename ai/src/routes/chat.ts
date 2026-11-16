@@ -28,6 +28,13 @@ export interface ChatRouteDeps {
 }
 
 /**
+ * 見出し `[...]` を全角に置き換え、本文に仕込んだ見出しで別の発言を偽装させない。
+ */
+function neutralizeHeadings(text: string): string {
+  return text.replace(/\[/g, "［").replace(/\]/g, "］");
+}
+
+/**
  * 返信先の発言・画像と今の発話を、Gemini がどれがどれか分かる 1 つの発話にする。
  * 返信先が無ければ今の発話をそのまま返す (従来どおり)。
  * 画像は `[画像]` の印だけを入れる (この文字列は履歴にも入るため、画像のデータや
@@ -41,15 +48,15 @@ function buildUserText(
   const parts: string[] = [];
   if (quoted) {
     const who = quoted.sender === "bot" ? "紅の発言" : "誰かの発言";
-    parts.push(`[返信先の${who}]\n${quoted.text}`);
+    parts.push(`[返信先の${who}]\n${neutralizeHeadings(quoted.text)}`);
   }
   if (hasImage) {
     parts.push("[画像]");
   }
   if (parts.length === 0) return maskedPrompt;
   const current =
-    maskedPrompt.length > 0
-      ? maskedPrompt
+    maskedPrompt.trim().length > 0
+      ? neutralizeHeadings(maskedPrompt)
       : "（本文なし。返信先について話しかけている）";
   return [...parts, `[今の発話]\n${current}`].join("\n\n");
 }
@@ -65,19 +72,23 @@ export function createChatRoute({
 }: ChatRouteDeps) {
   const app = new Hono();
 
-  /** 同じ sessionKey の保存済みメッセージだけを返す (別のグループの発言を読ませない)。 */
+  /**
+   * 同じ sessionKey の保存済みメッセージだけを返す (別のグループの発言を読ませない)。
+   * 読み取りに失敗しても、今の発話があれば返信先なしとして応答を続ける。
+   * 今の発話が空なら話すことが無いので、失敗をそのまま上げて 500 にする。
+   */
   async function findQuoted(
     quotedMessageId: string | undefined,
     sessionKey: string,
     now: Date,
+    hasPrompt: boolean,
   ): Promise<StoredMessage | null> {
     if (quotedMessageId === undefined) return null;
     try {
       const quoted = await messageStore.get(quotedMessageId, now);
       return quoted?.sessionKey === sessionKey ? quoted : null;
     } catch (err) {
-      // 返信先が読めなくても、返信先なしとして応答を続ける
-      if (err instanceof MessageStoreError) {
+      if (err instanceof MessageStoreError && hasPrompt) {
         logger.warn({ err }, "failed to read quoted message");
         return null;
       }
@@ -111,20 +122,7 @@ export function createChatRoute({
 
       const now = new Date();
 
-      const quoted = await findQuoted(quotedMessageId, sessionKey, now);
-      // 本文が空で返信先も無いなら、従来どおり話すことが無い
-      if (maskedInput.masked.length === 0 && !quoted && !quotedImage) {
-        return c.json(
-          { error: "invalid_request", message: "prompt must not be empty" },
-          400,
-        );
-      }
-      const userText = buildUserText(
-        maskedInput.masked,
-        quoted,
-        quotedImage !== undefined,
-      );
-
+      const hasPrompt = maskedInput.masked.trim().length > 0;
       // 画像のデータはログに出さない (mimeType と base64 の長さだけ)
       const imageLog = quotedImage && {
         mimeType: quotedImage.mimeType,
@@ -132,9 +130,30 @@ export function createChatRoute({
       };
 
       try {
-        // Step 2: 履歴取得 (Req 3.1, 3.2)
-        const history = await sessionService.getRecent(sessionKey, now);
+        // Step 2: 履歴取得 (Req 3.1, 3.2) と返信先の読み取りは互いに依存しないので並行に
+        const [history, quoted] = await Promise.all([
+          sessionService.getRecent(sessionKey, now),
+          // 画像があれば、返信先のテキストが読めなくても話すことはある
+          findQuoted(
+            quotedMessageId,
+            sessionKey,
+            now,
+            hasPrompt || quotedImage !== undefined,
+          ),
+        ]);
         const historyTurns = history.length;
+        // 本文が空で返信先も無いなら、従来どおり話すことが無い
+        if (!hasPrompt && !quoted && !quotedImage) {
+          return c.json(
+            { error: "invalid_request", message: "prompt must not be empty" },
+            400,
+          );
+        }
+        const userText = buildUserText(
+          maskedInput.masked,
+          quoted,
+          quotedImage !== undefined,
+        );
 
         // Step 3: Gemini 呼出 (Req 4.1, 4.4 — 成功時のみ append)
         const startedAt = Date.now();
@@ -204,6 +223,10 @@ export function createChatRoute({
         if (err instanceof ApiKeyDecodeError) {
           logger.warn({ err }, "failed to decode api key");
           return c.json({ error: "invalid_api_key" }, 400);
+        }
+        if (err instanceof MessageStoreError) {
+          logger.error({ err }, "message store failed");
+          return c.json({ error: "internal_error" }, 500);
         }
         if (err instanceof SessionStoreError) {
           // Req 8.3: Firestore I/O 失敗は 500 internal_error

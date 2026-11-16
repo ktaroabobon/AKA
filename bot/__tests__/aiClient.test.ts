@@ -96,13 +96,16 @@ describe("chatWithAi", () => {
   });
 
   it("sends quotedMessageId and allows an empty prompt with it (#75)", () => {
-    fetchMock.mockReturnValue(fakeResponse(200, { reply: "ok" }));
+    // 1 回目: GET /messages (返信先テキストあり) / 2 回目: /chat/genai
+    fetchMock
+      .mockReturnValueOnce(fakeResponse(204, ""))
+      .mockReturnValueOnce(fakeResponse(200, { reply: "ok" }));
 
     expect(chatWithAiResult("", "group:C1", "q-1")).toEqual({
       ok: true,
       reply: "ok",
     });
-    const body = JSON.parse(fetchMock.mock.calls[0][1].payload as string);
+    const body = JSON.parse(fetchMock.mock.calls[1][1].payload as string);
     expect(body.prompt).toBe("");
     expect(body.quotedMessageId).toBe("q-1");
   });

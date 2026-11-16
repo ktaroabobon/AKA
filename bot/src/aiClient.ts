@@ -1,4 +1,5 @@
 import { getAiBaseUrl, getGeminiApiKey } from "./config.js";
+import { fetchQuotedImage } from "./lineContent.js";
 import type { components } from "./api/generated.js";
 
 type ChatRequest = components["schemas"]["ChatRequest"];
@@ -43,6 +44,22 @@ export function saveMessage(input: SaveMessageRequest): void {
   }
 }
 
+/** 返信先のテキストが同じ sessionKey で保存済みか (#76)。確かめられなければ false。 */
+function hasStoredMessage(messageId: string, sessionKey: string): boolean {
+  try {
+    const response = UrlFetchApp.fetch(
+      aiUrl(
+        `/messages/${encodeURIComponent(messageId)}?sessionKey=${encodeURIComponent(sessionKey)}`,
+      ),
+      { method: "get", muteHttpExceptions: true },
+    );
+    return response.getResponseCode() === 204;
+  } catch (err) {
+    console.error("aiClient: GET /messages failed", err);
+    return false;
+  }
+}
+
 /**
  * AKA-AI の /chat/genai を叩いて応答テキストを取得する。
  * - GAS の UrlFetchApp を使う（fetch は GAS にないため）
@@ -55,11 +72,23 @@ export function chatWithAiResult(
   sessionKey: string,
   quotedMessageId?: string,
 ): AiClientResult {
-  // 本文が空でも返信先があれば AI に投げる (返信先について応答させる #75)
-  if ((!prompt || prompt.trim().length === 0) && !quotedMessageId) {
+  if (!sessionKey || sessionKey.length === 0) {
     return { ok: false, reason: "skipped" };
   }
-  if (!sessionKey || sessionKey.length === 0) {
+  // 返信先のテキストが保存されていなければ、返信先は画像かもしれないので取りに行く (#76)
+  const hasQuotedText =
+    quotedMessageId !== undefined &&
+    hasStoredMessage(quotedMessageId, sessionKey);
+  const quotedImage =
+    quotedMessageId !== undefined && !hasQuotedText
+      ? fetchQuotedImage(quotedMessageId)
+      : null;
+  // 本文が空でも返信先があれば AI に投げる (返信先について応答させる #75, #76)
+  if (
+    (!prompt || prompt.trim().length === 0) &&
+    !hasQuotedText &&
+    !quotedImage
+  ) {
     return { ok: false, reason: "skipped" };
   }
 
@@ -74,6 +103,7 @@ export function chatWithAiResult(
     prompt,
     encrypted_api_key: encryptedApiKey,
     ...(quotedMessageId ? { quotedMessageId } : {}),
+    ...(quotedImage ? { quotedImage } : {}),
   };
 
   let response: GoogleAppsScript.URL_Fetch.HTTPResponse;

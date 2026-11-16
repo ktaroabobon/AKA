@@ -15,6 +15,10 @@ export const saveMessageRequestSchema = z.object({
   text: z.string().min(1).max(MAX_TEXT_LENGTH),
 });
 
+export const findMessageParamSchema = z.object({
+  messageId: lineMessageIdSchema,
+});
+
 export const findMessageQuerySchema = z.object({
   sessionKey: z.string().min(1, "sessionKey must not be empty"),
 });

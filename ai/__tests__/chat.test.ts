@@ -1,9 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import {
-  createChatRoute,
-  type ChatRouteDeps,
-  type MaskFn,
-} from "../src/routes/chat.js";
+import { createChatRoute, type ChatRouteDeps } from "../src/routes/chat.js";
+import type { MaskFn } from "../src/services/moderation.js";
 import {
   GenaiSafetyBlockedError,
   GenaiServiceError,
@@ -304,7 +301,7 @@ describe("POST /chat/genai", () => {
           sessionKey: "group:C1",
           prompt,
           encrypted_api_key: "enc-key",
-          quotedMessageId: "q-1",
+          quotedMessageId: "2001",
         }),
       );
       const generate = genaiService.generate as ReturnType<typeof vi.fn>;
@@ -316,7 +313,7 @@ describe("POST /chat/genai", () => {
         await postWithQuote(QUOTED);
 
       expect(res.status).toBe(200);
-      expect(messageStore.get).toHaveBeenCalledWith("q-1", expect.any(Date));
+      expect(messageStore.get).toHaveBeenCalledWith("2001", expect.any(Date));
       const userText =
         "[返信先の誰かの発言]\n週末は海に行くよ\n\n[今の発話]\n[masked]この話どう思う？";
       expect(generate.mock.calls[0][0].userText).toBe(userText);

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { lineMessageIdSchema } from "./messages.js";
 
 // 5 MB の画像を base64 にした長さ (#76)
 const MAX_IMAGE_BASE64_LENGTH = 4 * Math.ceil((5 * 1024 * 1024) / 3);
@@ -8,7 +9,7 @@ export const chatRequestSchema = z
     sessionKey: z.string().min(1, "sessionKey must not be empty"),
     prompt: z.string(),
     encrypted_api_key: z.string().min(1, "encrypted_api_key must not be empty"),
-    quotedMessageId: z.string().min(1).optional(),
+    quotedMessageId: lineMessageIdSchema.optional(),
     quotedImage: z
       .object({
         mimeType: z.enum([

@@ -102,7 +102,7 @@ export interface components {
         SaveMessageRequest: {
             /** @description ChatRequest.sessionKey と同じ形式 */
             sessionKey: string;
-            /** @description LINE のメッセージ ID */
+            /** @description LINE のメッセージ ID（数字の文字列。Firestore の doc id に使う） */
             messageId: string;
             /**
              * @description 紅の発言なら bot、それ以外は user

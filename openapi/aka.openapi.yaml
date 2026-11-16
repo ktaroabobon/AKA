@@ -128,8 +128,8 @@ components:
           description: ChatRequest.sessionKey と同じ形式
         messageId:
           type: string
-          minLength: 1
-          description: LINE のメッセージ ID
+          pattern: "^[0-9]{1,64}$"
+          description: LINE のメッセージ ID（数字の文字列。Firestore の doc id に使う）
         sender:
           type: string
           enum: [user, bot]

@@ -1,9 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import {
-  createChatRoute,
-  type ChatRouteDeps,
-  type MaskFn,
-} from "../src/routes/chat.js";
+import { createChatRoute, type ChatRouteDeps } from "../src/routes/chat.js";
+import type { MaskFn } from "../src/services/moderation.js";
 import {
   GenaiSafetyBlockedError,
   GenaiServiceError,

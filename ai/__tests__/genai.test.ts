@@ -128,13 +128,13 @@ describe("GenaiService.generate", () => {
       text: "うさぎの写真だね！",
       candidates: [{ finishReason: "STOP" }],
     });
-    const image = { mimeType: "image/jpeg", data: "aW1n" };
+    const image = { mimeType: "image/jpeg" as const, data: "aW1n" };
 
     const service = createGenaiService(makeEnv());
     await service.generate(makeInput({ userText: "これ何？", image }));
 
     expect(sendMessage).toHaveBeenCalledWith({
-      message: [{ text: "これ何？" }, { inlineData: image }],
+      message: [{ inlineData: image }, { text: "これ何？" }],
     });
   });
 

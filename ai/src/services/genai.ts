@@ -23,6 +23,7 @@ import {
 } from "@google/genai";
 
 import type { Env } from "../config/env.js";
+import type { ChatRequest } from "../schemas/chat.js";
 import { ApiKeyDecodeError, decodeApiKey } from "../lib/decode.js";
 import type { Logger } from "../lib/logger.js";
 import { akaSystemInstruction } from "../prompts/aka.js";
@@ -48,11 +49,7 @@ export class GenaiSafetyBlockedError extends GenaiServiceError {
 }
 
 /** 返信先の画像 (#76)。その 1 回の sendMessage にだけ渡し、どこにも保存しない。 */
-export interface GenaiImage {
-  mimeType: string;
-  /** base64 */
-  data: string;
-}
+export type GenaiImage = NonNullable<ChatRequest["quotedImage"]>;
 
 export interface GenaiGenerateInput {
   history: ConversationMessage[];
@@ -174,7 +171,8 @@ async function generateWithModel(input: {
   try {
     response = await chat.sendMessage({
       message: input.image
-        ? [{ text: input.userText }, { inlineData: input.image }]
+        ? // 画像 1 枚のプロンプトは画像を先に置く (Gemini の推奨)
+          [{ inlineData: input.image }, { text: input.userText }]
         : input.userText,
     });
   } catch (cause) {

@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { lineMessageIdSchema } from "./messages.js";
 
-// 5 MB の画像を base64 にした長さ (#76)
+// 5 MB の画像を base64 にした長さ (#76)。openapi の quotedImage.data.maxLength と揃える
 const MAX_IMAGE_BASE64_LENGTH = 4 * Math.ceil((5 * 1024 * 1024) / 3);
 
 export const chatRequestSchema = z
@@ -19,7 +19,7 @@ export const chatRequestSchema = z
           "image/heic",
           "image/heif",
         ]),
-        data: z.string().min(1).max(MAX_IMAGE_BASE64_LENGTH),
+        data: z.base64().min(1).max(MAX_IMAGE_BASE64_LENGTH),
       })
       .optional(),
   })

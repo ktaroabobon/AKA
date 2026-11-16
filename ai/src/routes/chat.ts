@@ -30,7 +30,8 @@ export interface ChatRouteDeps {
 /**
  * 返信先の発言・画像と今の発話を、Gemini がどれがどれか分かる 1 つの発話にする。
  * 返信先が無ければ今の発話をそのまま返す (従来どおり)。
- * 画像は `[画像]` の印だけを入れる (この文字列は履歴にも入るため、画像のデータは含めない #76)。
+ * 画像は `[画像]` の印だけを入れる (この文字列は履歴にも入るため、画像のデータや
+ * 「添付を見て」の指示は含めない #76。指示はその回の Gemini 呼び出しにだけ付ける)。
  */
 function buildUserText(
   maskedPrompt: string,
@@ -43,7 +44,7 @@ function buildUserText(
     parts.push(`[返信先の${who}]\n${quoted.text}`);
   }
   if (hasImage) {
-    parts.push("[画像]\n（返信先は画像。添付の画像を見て答える）");
+    parts.push("[画像]");
   }
   if (parts.length === 0) return maskedPrompt;
   const current =
@@ -52,6 +53,8 @@ function buildUserText(
       : "（本文なし。返信先について話しかけている）";
   return [...parts, `[今の発話]\n${current}`].join("\n\n");
 }
+
+const IMAGE_INSTRUCTION = "（返信先は画像。添付の画像を見て答える）";
 
 export function createChatRoute({
   moderation,
@@ -122,6 +125,12 @@ export function createChatRoute({
         quotedImage !== undefined,
       );
 
+      // 画像のデータはログに出さない (mimeType と base64 の長さだけ)
+      const imageLog = quotedImage && {
+        mimeType: quotedImage.mimeType,
+        base64Length: quotedImage.data.length,
+      };
+
       try {
         // Step 2: 履歴取得 (Req 3.1, 3.2)
         const history = await sessionService.getRecent(sessionKey, now);
@@ -133,7 +142,9 @@ export function createChatRoute({
         try {
           replyText = await genaiService.generate({
             history,
-            userText,
+            userText: quotedImage
+              ? `${IMAGE_INSTRUCTION}\n\n${userText}`
+              : userText,
             encryptedApiKey: encrypted_api_key,
             image: quotedImage,
           });
@@ -149,6 +160,7 @@ export function createChatRoute({
                 geminiDurationMs,
                 piiRedactions,
                 profanityRedactions,
+                quotedImage: imageLog,
                 finishReason: "SAFETY",
               },
               "gemini safety blocked",
@@ -178,11 +190,7 @@ export function createChatRoute({
             sessionKey,
             historyTurns,
             quoted: quoted !== null,
-            // 画像のデータは出さない (mimeType と base64 の長さだけ)
-            quotedImage: quotedImage && {
-              mimeType: quotedImage.mimeType,
-              base64Length: quotedImage.data.length,
-            },
+            quotedImage: imageLog,
             geminiDurationMs,
             piiRedactions: piiRedactions + replyPii,
             profanityRedactions: profanityRedactions + replyProfanity,

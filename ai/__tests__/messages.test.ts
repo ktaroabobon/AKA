@@ -4,6 +4,7 @@ import { createMessagesRoute } from "../src/routes/messages.js";
 import { mask } from "../src/services/moderation.js";
 import {
   createMessageStore,
+  MessageStoreError,
   type MessageStore,
 } from "../src/services/messageStore.js";
 import type { Logger } from "../src/lib/logger.js";
@@ -153,19 +154,109 @@ describe("MessageStore.get", () => {
 
   it("returns the stored message before expiresAt", async () => {
     const store = createMessageStore(makeReadFirestore(stored));
-    await expect(store.get("m-1", now)).resolves.toEqual(stored);
+    await expect(store.get("m-1", "group:C1", now)).resolves.toEqual(stored);
   });
 
-  it("returns null when expired or missing", async () => {
+  it("returns null when expired, missing or from another sessionKey", async () => {
     const expired = {
       ...stored,
       expiresAt: Timestamp.fromMillis(now.getTime() - 1),
     };
     await expect(
-      createMessageStore(makeReadFirestore(expired)).get("m-1", now),
+      createMessageStore(makeReadFirestore(expired)).get(
+        "m-1",
+        "group:C1",
+        now,
+      ),
     ).resolves.toBeNull();
     await expect(
-      createMessageStore(makeReadFirestore(undefined)).get("m-1", now),
+      createMessageStore(makeReadFirestore(undefined)).get(
+        "m-1",
+        "group:C1",
+        now,
+      ),
     ).resolves.toBeNull();
+    await expect(
+      createMessageStore(makeReadFirestore(stored)).get(
+        "m-1",
+        "group:OTHER",
+        now,
+      ),
+    ).resolves.toBeNull();
+  });
+});
+
+describe("GET /messages/:messageId (#76)", () => {
+  function makeStore(get: MessageStore["get"]): MessageStore {
+    return { save: vi.fn(async () => undefined), get: vi.fn(get) };
+  }
+  const stored = {
+    sessionKey: "group:C1",
+    sender: "user" as const,
+    text: "hi",
+    expiresAt: Timestamp.fromMillis(Date.now() + 60_000),
+  };
+
+  async function find(
+    store: MessageStore,
+    query = "?sessionKey=group%3AC1",
+    id = "1001",
+  ) {
+    return makeApp(store).fetch(
+      new Request(`http://localhost/messages/${id}${query}`),
+    );
+  }
+
+  it("returns 204 without the text when the same sessionKey has it", async () => {
+    const store = makeStore(async () => stored);
+
+    const res = await find(store);
+
+    expect(res.status).toBe(204);
+    expect(await res.text()).toBe("");
+    expect(store.get).toHaveBeenCalledWith(
+      "1001",
+      "group:C1",
+      expect.any(Date),
+    );
+  });
+
+  it("returns 404 not_found when the store has no message for the sessionKey", async () => {
+    const res = await find(makeStore(async () => null));
+
+    expect(res.status).toBe(404);
+    await expect(res.json()).resolves.toEqual({ error: "not_found" });
+  });
+
+  it("returns 400 invalid_request for a messageId that is not a LINE id", async () => {
+    const store = makeStore(async () => stored);
+
+    const res = await find(store, "?sessionKey=group%3AC1", "__x__");
+
+    expect(res.status).toBe(400);
+    expect(store.get).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 invalid_request without sessionKey", async () => {
+    const res = await find(
+      makeStore(async () => stored),
+      "",
+    );
+
+    expect(res.status).toBe(400);
+    await expect(res.json()).resolves.toMatchObject({
+      error: "invalid_request",
+    });
+  });
+
+  it("returns 500 internal_error when Firestore read fails", async () => {
+    const res = await find(
+      makeStore(async () => {
+        throw new MessageStoreError("down");
+      }),
+    );
+
+    expect(res.status).toBe(500);
+    await expect(res.json()).resolves.toEqual({ error: "internal_error" });
   });
 });

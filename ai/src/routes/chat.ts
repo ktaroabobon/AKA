@@ -73,7 +73,7 @@ export function createChatRoute({
   const app = new Hono();
 
   /**
-   * 同じ sessionKey の保存済みメッセージだけを返す (別のグループの発言を読ませない)。
+   * 返信先を読む (別のグループの発言は messageStore.get が返さない)。
    * 読み取りに失敗しても、今の発話があれば返信先なしとして応答を続ける。
    * 今の発話が空なら話すことが無いので、失敗をそのまま上げて 500 にする。
    */
@@ -85,8 +85,7 @@ export function createChatRoute({
   ): Promise<StoredMessage | null> {
     if (quotedMessageId === undefined) return null;
     try {
-      const quoted = await messageStore.get(quotedMessageId, now);
-      return quoted?.sessionKey === sessionKey ? quoted : null;
+      return await messageStore.get(quotedMessageId, sessionKey, now);
     } catch (err) {
       if (err instanceof MessageStoreError && hasPrompt) {
         logger.warn({ err }, "failed to read quoted message");

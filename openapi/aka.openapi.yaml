@@ -90,6 +90,49 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /messages/{messageId}:
+    get:
+      operationId: getMessage
+      tags: [Messages]
+      summary: 保存済みメッセージがあるかだけを返す（本文は返さない）
+      description: |
+        bot が返信先のテキストが保存済みかを確かめ、無ければ画像を取りに行くために使う。
+        期限切れ・`sessionKey` 不一致は 404。
+      parameters:
+        - name: messageId
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: "^[0-9]{1,64}$"
+          description: LINE のメッセージ ID
+        - name: sessionKey
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 1
+      responses:
+        "204":
+          description: 同じ sessionKey の保存済みメッセージがある
+        "400":
+          description: 不正なリクエスト
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: 無い（期限切れ・sessionKey 不一致を含む）
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: 内部エラー（Firestore の失敗など）
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 components:
   schemas:
     HealthResponse:
@@ -179,7 +222,7 @@ components:
       properties:
         error:
           type: string
-          description: エラーコード（invalid_request / invalid_api_key / genai_failed / internal_error）
+          description: エラーコード（invalid_request / invalid_api_key / not_found / genai_failed / internal_error）
         message:
           type: string
           description: 補足メッセージ

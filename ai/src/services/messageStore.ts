@@ -39,7 +39,15 @@ export interface SaveMessageInput {
 
 export interface MessageStore {
   save(input: SaveMessageInput, now: Date): Promise<void>;
-  get(messageId: string, now: Date): Promise<StoredMessage | null>;
+  /**
+   * 同じ sessionKey の、期限内の保存済みメッセージだけを返す。
+   * 別のグループの発言を読ませない (有無も漏らさない) ため、隔離はここ 1 か所で判定する。
+   */
+  get(
+    messageId: string,
+    sessionKey: string,
+    now: Date,
+  ): Promise<StoredMessage | null>;
 }
 
 export function createMessageStore(firestore: Firestore): MessageStore {
@@ -60,7 +68,7 @@ export function createMessageStore(firestore: Firestore): MessageStore {
       }
     },
 
-    async get(messageId, now) {
+    async get(messageId, sessionKey, now) {
       let snapshot;
       try {
         snapshot = await firestore.collection(COLLECTION).doc(messageId).get();
@@ -70,7 +78,8 @@ export function createMessageStore(firestore: Firestore): MessageStore {
         });
       }
       const data = snapshot.data() as StoredMessage | undefined;
-      if (!data || data.expiresAt.toMillis() <= now.getTime()) return null;
+      if (!data || data.sessionKey !== sessionKey) return null;
+      if (data.expiresAt.toMillis() <= now.getTime()) return null;
       return data;
     },
   };

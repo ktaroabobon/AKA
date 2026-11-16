@@ -8,9 +8,19 @@ export const lineMessageIdSchema = z
   .string()
   .regex(/^[0-9]{1,64}$/, "messageId must be 1-64 digits");
 
+const sessionKeySchema = z.string().min(1, "sessionKey must not be empty");
+
 export const saveMessageRequestSchema = z.object({
-  sessionKey: z.string().min(1, "sessionKey must not be empty"),
+  sessionKey: sessionKeySchema,
   messageId: lineMessageIdSchema,
   sender: z.enum(["user", "bot"]),
   text: z.string().min(1).max(MAX_TEXT_LENGTH),
+});
+
+export const findMessageParamSchema = z.object({
+  messageId: lineMessageIdSchema,
+});
+
+export const findMessageQuerySchema = z.object({
+  sessionKey: sessionKeySchema,
 });

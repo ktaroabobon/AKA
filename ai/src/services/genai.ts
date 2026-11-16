@@ -23,6 +23,7 @@ import {
 } from "@google/genai";
 
 import type { Env } from "../config/env.js";
+import type { ChatRequest } from "../schemas/chat.js";
 import { ApiKeyDecodeError, decodeApiKey } from "../lib/decode.js";
 import type { Logger } from "../lib/logger.js";
 import { akaSystemInstruction } from "../prompts/aka.js";
@@ -47,10 +48,14 @@ export class GenaiSafetyBlockedError extends GenaiServiceError {
   }
 }
 
+/** 返信先の画像 (#76)。その 1 回の sendMessage にだけ渡し、どこにも保存しない。 */
+export type GenaiImage = NonNullable<ChatRequest["quotedImage"]>;
+
 export interface GenaiGenerateInput {
   history: ConversationMessage[];
   userText: string;
   encryptedApiKey: string;
+  image?: GenaiImage;
 }
 
 export interface GenaiService {
@@ -147,6 +152,7 @@ async function generateWithModel(input: {
   model: string;
   history: ConversationMessage[];
   userText: string;
+  image?: GenaiImage;
   attempt: number;
   fallbackUsed: boolean;
   logger?: Logger;
@@ -163,7 +169,12 @@ async function generateWithModel(input: {
   let response;
   const startedAt = Date.now();
   try {
-    response = await chat.sendMessage({ message: input.userText });
+    response = await chat.sendMessage({
+      message: input.image
+        ? // 画像 1 枚のプロンプトは画像を先に置く (Gemini の推奨)
+          [{ inlineData: input.image }, { text: input.userText }]
+        : input.userText,
+    });
   } catch (cause) {
     // ApiKeyDecodeError は decodeApiKey からのみ伝播する想定だが念のため
     if (cause instanceof ApiKeyDecodeError) throw cause;
@@ -235,7 +246,7 @@ async function generateWithModel(input: {
 
 export function createGenaiService(env: Env, logger?: Logger): GenaiService {
   return {
-    async generate({ history, userText, encryptedApiKey }) {
+    async generate({ history, userText, encryptedApiKey, image }) {
       // ApiKeyDecodeError はそのまま投げる (route 層が 400 invalid_api_key として直接処理)
       const apiKey = decodeApiKey(encryptedApiKey);
       const ai = new GoogleGenAI({ apiKey });
@@ -249,6 +260,7 @@ export function createGenaiService(env: Env, logger?: Logger): GenaiService {
             model,
             history,
             userText,
+            image,
             attempt: index + 1,
             fallbackUsed: index > 0,
             logger,

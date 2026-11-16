@@ -356,7 +356,7 @@ describe("POST /chat/genai", () => {
 
       expect(res.status).toBe(200);
       expect(generate.mock.calls[0][0].userText).toBe(
-        "[返信先の誰かの発言]\n週末は海に行くよ\n\n[今の発話]\n（本文なし。返信先の発言について話しかけている）",
+        "[返信先の誰かの発言]\n週末は海に行くよ\n\n[今の発話]\n（本文なし。返信先について話しかけている）",
       );
     });
 
@@ -436,6 +436,85 @@ describe("POST /chat/genai", () => {
 
       expect(res.status).toBe(400);
       await expect(res.json()).resolves.toMatchObject({
+        error: "invalid_request",
+      });
+      expect(genaiService.generate).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("quotedImage (#76)", () => {
+    const IMAGE = { mimeType: "image/png", data: "aW1hZ2UtYnl0ZXM=" };
+
+    function postWithImage(quotedImage: unknown, prompt = "これ何？") {
+      const deps = makeApp();
+      const res = deps.app.fetch(
+        makeRequest({
+          sessionKey: "group:C1",
+          prompt,
+          encrypted_api_key: "enc-key",
+          quotedImage,
+        }),
+      );
+      return { res, ...deps };
+    }
+
+    it("passes the image to Gemini and keeps only the [画像] mark in history", async () => {
+      const { res, genaiService, sessionService } = postWithImage(IMAGE);
+
+      expect((await res).status).toBe(200);
+      const userText = "[画像]\n\n[今の発話]\n［masked］これ何？";
+      expect(genaiService.generate).toHaveBeenCalledWith({
+        history: [],
+        userText: `（返信先は画像。添付の画像を見て答える）\n\n${userText}`,
+        encryptedApiKey: "enc-key",
+        image: IMAGE,
+      });
+      const appendCall = (sessionService.append as ReturnType<typeof vi.fn>)
+        .mock.calls[0];
+      expect(appendCall[1]).toBe(userText);
+      expect(JSON.stringify(appendCall)).not.toContain(IMAGE.data);
+    });
+
+    it("calls Gemini about the image even when the prompt is empty", async () => {
+      const { res, genaiService } = postWithImage(IMAGE, "");
+
+      expect((await res).status).toBe(200);
+      const generate = genaiService.generate as ReturnType<typeof vi.fn>;
+      expect(generate.mock.calls[0][0].userText).toBe(
+        "（返信先は画像。添付の画像を見て答える）\n\n[画像]\n\n[今の発話]\n（本文なし。返信先について話しかけている）",
+      );
+    });
+
+    it("returns 400 invalid_request for a mimeType that is not allowed", async () => {
+      const { res, genaiService } = postWithImage({
+        mimeType: "image/gif",
+        data: IMAGE.data,
+      });
+
+      expect((await res).status).toBe(400);
+      expect(genaiService.generate).not.toHaveBeenCalled();
+    });
+
+    it("returns 400 invalid_request when data is not base64", async () => {
+      const { res, genaiService } = postWithImage({
+        mimeType: "image/png",
+        data: "not base64!",
+      });
+
+      expect((await res).status).toBe(400);
+      expect(genaiService.generate).not.toHaveBeenCalled();
+    });
+
+    it("returns 400 invalid_request when data exceeds 5 MB in base64", async () => {
+      const { res, genaiService } = postWithImage({
+        mimeType: "image/png",
+        // base64 として正しい形のまま上限を 4 文字超える
+        data: "A".repeat(4 * Math.ceil((5 * 1024 * 1024) / 3) + 4),
+      });
+
+      const awaited = await res;
+      expect(awaited.status).toBe(400);
+      await expect(awaited.json()).resolves.toMatchObject({
         error: "invalid_request",
       });
       expect(genaiService.generate).not.toHaveBeenCalled();

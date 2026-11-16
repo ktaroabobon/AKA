@@ -35,21 +35,33 @@ function neutralizeHeadings(text: string): string {
 }
 
 /**
- * 返信先の発言と今の発話を、Gemini がどちらがどちらか分かる 1 つの発話にする。
+ * 返信先の発言・画像と今の発話を、Gemini がどれがどれか分かる 1 つの発話にする。
  * 返信先が無ければ今の発話をそのまま返す (従来どおり)。
+ * 画像は `[画像]` の印だけを入れる (この文字列は履歴にも入るため、画像のデータや
+ * 「添付を見て」の指示は含めない #76。指示はその回の Gemini 呼び出しにだけ付ける)。
  */
 function buildUserText(
   maskedPrompt: string,
   quoted: StoredMessage | null,
+  hasImage: boolean,
 ): string {
-  if (!quoted) return maskedPrompt;
-  const who = quoted.sender === "bot" ? "紅の発言" : "誰かの発言";
+  const parts: string[] = [];
+  if (quoted) {
+    const who = quoted.sender === "bot" ? "紅の発言" : "誰かの発言";
+    parts.push(`[返信先の${who}]\n${neutralizeHeadings(quoted.text)}`);
+  }
+  if (hasImage) {
+    parts.push("[画像]");
+  }
+  if (parts.length === 0) return maskedPrompt;
   const current =
     maskedPrompt.trim().length > 0
       ? neutralizeHeadings(maskedPrompt)
-      : "（本文なし。返信先の発言について話しかけている）";
-  return `[返信先の${who}]\n${neutralizeHeadings(quoted.text)}\n\n[今の発話]\n${current}`;
+      : "（本文なし。返信先について話しかけている）";
+  return [...parts, `[今の発話]\n${current}`].join("\n\n");
 }
+
+const IMAGE_INSTRUCTION = "（返信先は画像。添付の画像を見て答える）";
 
 export function createChatRoute({
   moderation,
@@ -95,8 +107,13 @@ export function createChatRoute({
       }
     }),
     async (c) => {
-      const { sessionKey, prompt, encrypted_api_key, quotedMessageId } =
-        c.req.valid("json");
+      const {
+        sessionKey,
+        prompt,
+        encrypted_api_key,
+        quotedMessageId,
+        quotedImage,
+      } = c.req.valid("json");
 
       // Step 1: 入力テキストをマスク (Req 5.1, 5.2, 5.5)
       const maskedInput = moderation(prompt);
@@ -106,22 +123,37 @@ export function createChatRoute({
       const now = new Date();
 
       const hasPrompt = maskedInput.masked.trim().length > 0;
+      // 画像のデータはログに出さない (mimeType と base64 の長さだけ)
+      const imageLog = quotedImage && {
+        mimeType: quotedImage.mimeType,
+        base64Length: quotedImage.data.length,
+      };
 
       try {
         // Step 2: 履歴取得 (Req 3.1, 3.2) と返信先の読み取りは互いに依存しないので並行に
         const [history, quoted] = await Promise.all([
           sessionService.getRecent(sessionKey, now),
-          findQuoted(quotedMessageId, sessionKey, now, hasPrompt),
+          // 画像があれば、返信先のテキストが読めなくても話すことはある
+          findQuoted(
+            quotedMessageId,
+            sessionKey,
+            now,
+            hasPrompt || quotedImage !== undefined,
+          ),
         ]);
         const historyTurns = history.length;
         // 本文が空で返信先も無いなら、従来どおり話すことが無い
-        if (!hasPrompt && !quoted) {
+        if (!hasPrompt && !quoted && !quotedImage) {
           return c.json(
             { error: "invalid_request", message: "prompt must not be empty" },
             400,
           );
         }
-        const userText = buildUserText(maskedInput.masked, quoted);
+        const userText = buildUserText(
+          maskedInput.masked,
+          quoted,
+          quotedImage !== undefined,
+        );
 
         // Step 3: Gemini 呼出 (Req 4.1, 4.4 — 成功時のみ append)
         const startedAt = Date.now();
@@ -129,8 +161,11 @@ export function createChatRoute({
         try {
           replyText = await genaiService.generate({
             history,
-            userText,
+            userText: quotedImage
+              ? `${IMAGE_INSTRUCTION}\n\n${userText}`
+              : userText,
             encryptedApiKey: encrypted_api_key,
+            image: quotedImage,
           });
         } catch (err) {
           const geminiDurationMs = Date.now() - startedAt;
@@ -144,6 +179,7 @@ export function createChatRoute({
                 geminiDurationMs,
                 piiRedactions,
                 profanityRedactions,
+                quotedImage: imageLog,
                 finishReason: "SAFETY",
               },
               "gemini safety blocked",
@@ -173,6 +209,7 @@ export function createChatRoute({
             sessionKey,
             historyTurns,
             quoted: quoted !== null,
+            quotedImage: imageLog,
             geminiDurationMs,
             piiRedactions: piiRedactions + replyPii,
             profanityRedactions: profanityRedactions + replyProfanity,

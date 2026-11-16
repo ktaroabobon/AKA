@@ -1,13 +1,25 @@
+import { saveMessage } from "./aiClient.js";
 import { getBotId, getChannelAccessToken } from "./config.js";
 import { generateReply } from "./controller.js";
 import { mentionPhraseList } from "./constants.js";
+import { buildSessionKey } from "./lib/sessionKey.js";
 import type {
   LineEvent,
   LineReplyMessage,
+  LineReplyResponse,
+  LineTextMessage,
   LineWebhookBody,
 } from "./types/line.js";
 
 const LINE_REPLY_URL = "https://api.line.me/v2/bot/message/reply";
+
+/** テキストメッセージならそれを返す。応答に使う本文と保存する本文をずらさないため 1 か所で判定する。 */
+function getTextMessage(event: LineEvent): LineTextMessage | null {
+  const message = event.message;
+  return message && message.type === "text" && "text" in message
+    ? message
+    : null;
+}
 
 export interface MentionResolution {
   isBotMentioned: boolean;
@@ -23,12 +35,7 @@ export interface MentionResolution {
  *   BOT_ID が含まれているか、本文がメンションフレーズで始まるかで判定する。
  */
 export function isBotMentioned(event: LineEvent): MentionResolution {
-  const text =
-    event.message &&
-    "text" in event.message &&
-    typeof event.message.text === "string"
-      ? event.message.text
-      : "";
+  const text = getTextMessage(event)?.text ?? "";
 
   // 個チャはメンションを要求しない
   if (event.source.type === "user") {
@@ -70,8 +77,10 @@ function buildReplyPayload(
   };
 }
 
-function postReply(payload: ReturnType<typeof buildReplyPayload>): number {
-  const response = UrlFetchApp.fetch(LINE_REPLY_URL, {
+function postReply(
+  payload: ReturnType<typeof buildReplyPayload>,
+): GoogleAppsScript.URL_Fetch.HTTPResponse {
+  return UrlFetchApp.fetch(LINE_REPLY_URL, {
     method: "post",
     contentType: "application/json; charset=UTF-8",
     headers: {
@@ -79,7 +88,19 @@ function postReply(payload: ReturnType<typeof buildReplyPayload>): number {
     },
     payload: JSON.stringify(payload),
   });
-  return response.getResponseCode();
+}
+
+/** reply API の応答から、送ったメッセージの ID を取り出す。取れなければ null。 */
+function parseSentMessageId(
+  response: GoogleAppsScript.URL_Fetch.HTTPResponse,
+): string | null {
+  try {
+    const parsed = JSON.parse(response.getContentText()) as LineReplyResponse;
+    const id = parsed.sentMessages?.[0]?.id;
+    return typeof id === "string" && id.length > 0 ? id : null;
+  } catch {
+    return null;
+  }
 }
 
 export interface DoPostOptions {
@@ -96,6 +117,7 @@ export function doPost(
   const event = body.events[0];
   if (!event) return null;
 
+  const textMessage = event.type === "message" ? getTextMessage(event) : null;
   const mention = isBotMentioned(event);
   const reply = generateReply({
     eventType: event.type,
@@ -104,8 +126,37 @@ export function doPost(
     source: event.source,
   });
 
-  if (reply === null || !event.replyToken) return null;
-  if (options.skipApiCall) return reply;
+  let result: number | string | null = null;
+  let sentMessageId: string | null = null;
+  if (reply !== null && event.replyToken) {
+    if (options.skipApiCall) {
+      result = reply;
+    } else {
+      const response = postReply(buildReplyPayload(event.replyToken, reply));
+      sentMessageId = parseSentMessageId(response);
+      result = response.getResponseCode();
+    }
+  }
 
-  return postReply(buildReplyPayload(event.replyToken, reply));
+  // 返信を遅らせないよう、保存は返信の後に行う
+  const sessionKey = buildSessionKey(event.source);
+  if (sessionKey === null) return result;
+  // メンションの有無に関わらず保存する (後で誰かがこの発言に返信して紅を呼ぶため)
+  if (textMessage !== null && textMessage.text.length > 0) {
+    saveMessage({
+      sessionKey,
+      messageId: textMessage.id,
+      sender: "user",
+      text: textMessage.text,
+    });
+  }
+  if (reply !== null && sentMessageId !== null) {
+    saveMessage({
+      sessionKey,
+      messageId: sentMessageId,
+      sender: "bot",
+      text: reply,
+    });
+  }
+  return result;
 }

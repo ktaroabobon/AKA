@@ -1,9 +1,12 @@
+import { saveMessage } from "./aiClient.js";
 import { getBotId, getChannelAccessToken } from "./config.js";
 import { generateReply } from "./controller.js";
 import { mentionPhraseList } from "./constants.js";
+import { buildSessionKey } from "./lib/sessionKey.js";
 import type {
   LineEvent,
   LineReplyMessage,
+  LineReplyResponse,
   LineWebhookBody,
 } from "./types/line.js";
 
@@ -70,8 +73,10 @@ function buildReplyPayload(
   };
 }
 
-function postReply(payload: ReturnType<typeof buildReplyPayload>): number {
-  const response = UrlFetchApp.fetch(LINE_REPLY_URL, {
+function postReply(
+  payload: ReturnType<typeof buildReplyPayload>,
+): GoogleAppsScript.URL_Fetch.HTTPResponse {
+  return UrlFetchApp.fetch(LINE_REPLY_URL, {
     method: "post",
     contentType: "application/json; charset=UTF-8",
     headers: {
@@ -79,7 +84,19 @@ function postReply(payload: ReturnType<typeof buildReplyPayload>): number {
     },
     payload: JSON.stringify(payload),
   });
-  return response.getResponseCode();
+}
+
+/** reply API の応答から、送ったメッセージの ID を取り出す。取れなければ null。 */
+function parseSentMessageId(
+  response: GoogleAppsScript.URL_Fetch.HTTPResponse,
+): string | null {
+  try {
+    const parsed = JSON.parse(response.getContentText()) as LineReplyResponse;
+    const id = parsed.sentMessages?.[0]?.id;
+    return typeof id === "string" && id.length > 0 ? id : null;
+  } catch {
+    return null;
+  }
 }
 
 export interface DoPostOptions {
@@ -96,6 +113,24 @@ export function doPost(
   const event = body.events[0];
   if (!event) return null;
 
+  const sessionKey = buildSessionKey(event.source);
+  const message = event.message;
+  // メンションの有無に関わらず保存する (後で誰かがこの発言に返信して紅を呼ぶため)
+  if (
+    sessionKey !== null &&
+    event.type === "message" &&
+    message?.type === "text" &&
+    "text" in message &&
+    typeof message.text === "string"
+  ) {
+    saveMessage({
+      sessionKey,
+      messageId: message.id,
+      sender: "user",
+      text: message.text,
+    });
+  }
+
   const mention = isBotMentioned(event);
   const reply = generateReply({
     eventType: event.type,
@@ -107,5 +142,15 @@ export function doPost(
   if (reply === null || !event.replyToken) return null;
   if (options.skipApiCall) return reply;
 
-  return postReply(buildReplyPayload(event.replyToken, reply));
+  const response = postReply(buildReplyPayload(event.replyToken, reply));
+  const sentMessageId = parseSentMessageId(response);
+  if (sessionKey !== null && sentMessageId !== null) {
+    saveMessage({
+      sessionKey,
+      messageId: sentMessageId,
+      sender: "bot",
+      text: reply,
+    });
+  }
+  return response.getResponseCode();
 }

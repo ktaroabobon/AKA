@@ -56,3 +56,8 @@ export interface LineReplyMessage {
   type: "text";
   text: string;
 }
+
+/** reply API の応答。送ったメッセージの ID が入る。 */
+export interface LineReplyResponse {
+  sentMessages?: Array<{ id: string }>;
+}

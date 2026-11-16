@@ -3,6 +3,7 @@ import type { components } from "./api/generated.js";
 
 type ChatRequest = components["schemas"]["ChatRequest"];
 type ChatResponse = components["schemas"]["ChatResponse"];
+type SaveMessageRequest = components["schemas"]["SaveMessageRequest"];
 
 export type AiClientFailureReason =
   | "skipped"
@@ -14,6 +15,33 @@ export type AiClientFailureReason =
 export type AiClientResult =
   | { ok: true; reply: string }
   | { ok: false; reason: AiClientFailureReason; status?: number };
+
+function aiUrl(path: string): string {
+  return `${getAiBaseUrl().replace(/\/$/, "")}${path}`;
+}
+
+/**
+ * AKA-AI の /messages にメッセージを保存する (#75)。
+ * LINE は返信先の本文を後から返さないので、受け取った / 送った時点で保存しておく。
+ * 保存に失敗しても応答は止めないため、例外は投げずにログだけ残す。
+ */
+export function saveMessage(input: SaveMessageRequest): void {
+  if (!input.text || !input.sessionKey || !input.messageId) return;
+  try {
+    const response = UrlFetchApp.fetch(aiUrl("/messages"), {
+      method: "post",
+      contentType: "application/json; charset=UTF-8",
+      payload: JSON.stringify(input),
+      muteHttpExceptions: true,
+    });
+    const status = response.getResponseCode();
+    if (status !== 204) {
+      console.warn(`aiClient: /messages returned ${status}`);
+    }
+  } catch (err) {
+    console.error("aiClient: /messages fetch failed", err);
+  }
+}
 
 /**
  * AKA-AI の /chat/genai を叩いて応答テキストを取得する。
@@ -33,7 +61,7 @@ export function chatWithAiResult(
     return { ok: false, reason: "skipped" };
   }
 
-  const url = `${getAiBaseUrl().replace(/\/$/, "")}/chat/genai`;
+  const url = aiUrl("/chat/genai");
   const encryptedApiKey = Utilities.base64Encode(
     getGeminiApiKey(),
     Utilities.Charset.UTF_8,

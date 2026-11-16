@@ -160,6 +160,23 @@ describe("doPost: message saving (#75)", () => {
     expect(callsTo(CHAT_URL)).toMatchObject([{ quotedMessageId: "q-1" }]);
   });
 
+  it("sends an empty prompt with quotedMessageId for a mention-only reply", () => {
+    routeFetch({
+      [CHAT_URL]: () => fakeResponse(200, { reply: "海いいね！" }),
+    });
+    const event = groupTextEvent("あか、", false);
+    event.message = {
+      ...event.message!,
+      quotedMessageId: "2001",
+    } as LineEvent["message"];
+
+    post(event);
+
+    expect(callsTo(CHAT_URL)).toMatchObject([
+      { prompt: "", quotedMessageId: "2001" },
+    ]);
+  });
+
   it("does not call AI for a non-mentioned reply with quotedMessageId", () => {
     routeFetch({});
     const event = groupTextEvent("それな", false);

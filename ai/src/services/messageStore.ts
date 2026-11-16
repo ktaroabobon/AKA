@@ -69,9 +69,7 @@ export function createMessageStore(firestore: Firestore): MessageStore {
           cause,
         });
       }
-      const data = snapshot.exists
-        ? (snapshot.data() as StoredMessage | undefined)
-        : undefined;
+      const data = snapshot.data() as StoredMessage | undefined;
       if (!data || data.expiresAt.toMillis() <= now.getTime()) return null;
       return data;
     },

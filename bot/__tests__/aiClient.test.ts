@@ -36,6 +36,7 @@ describe("chatWithAi", () => {
     const body = JSON.parse(options.payload as string);
     expect(body.prompt).toBe("おはよう");
     expect(body.sessionKey).toBe("user:U123");
+    expect(body).not.toHaveProperty("quotedMessageId");
     const expectedEncoded = Buffer.from(
       TestConstants.GEMINI_API_KEY,
       "utf-8",

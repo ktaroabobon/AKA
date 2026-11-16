@@ -7,10 +7,19 @@ import type {
   LineEvent,
   LineReplyMessage,
   LineReplyResponse,
+  LineTextMessage,
   LineWebhookBody,
 } from "./types/line.js";
 
 const LINE_REPLY_URL = "https://api.line.me/v2/bot/message/reply";
+
+/** テキストメッセージならそれを返す。応答に使う本文と保存する本文をずらさないため 1 か所で判定する。 */
+function getTextMessage(event: LineEvent): LineTextMessage | null {
+  const message = event.message;
+  return message && message.type === "text" && "text" in message
+    ? message
+    : null;
+}
 
 export interface MentionResolution {
   isBotMentioned: boolean;
@@ -26,12 +35,7 @@ export interface MentionResolution {
  *   BOT_ID が含まれているか、本文がメンションフレーズで始まるかで判定する。
  */
 export function isBotMentioned(event: LineEvent): MentionResolution {
-  const text =
-    event.message &&
-    "text" in event.message &&
-    typeof event.message.text === "string"
-      ? event.message.text
-      : "";
+  const text = getTextMessage(event)?.text ?? "";
 
   // 個チャはメンションを要求しない
   if (event.source.type === "user") {
@@ -113,42 +117,41 @@ export function doPost(
   const event = body.events[0];
   if (!event) return null;
 
-  const sessionKey = buildSessionKey(event.source);
-  const message = event.message;
-  // メンションの有無に関わらず保存する (後で誰かがこの発言に返信して紅を呼ぶため)
-  if (
-    sessionKey !== null &&
-    event.type === "message" &&
-    message?.type === "text" &&
-    "text" in message &&
-    typeof message.text === "string"
-  ) {
-    saveMessage({
-      sessionKey,
-      messageId: message.id,
-      sender: "user",
-      text: message.text,
-    });
-  }
-
+  const textMessage = event.type === "message" ? getTextMessage(event) : null;
   const mention = isBotMentioned(event);
   const reply = generateReply({
     eventType: event.type,
     userMessage: mention.userMessage,
     isBotMentioned: mention.isBotMentioned,
     source: event.source,
-    quotedMessageId:
-      message && "quotedMessageId" in message
-        ? message.quotedMessageId
-        : undefined,
+    quotedMessageId: textMessage?.quotedMessageId,
   });
 
-  if (reply === null || !event.replyToken) return null;
-  if (options.skipApiCall) return reply;
+  let result: number | string | null = null;
+  let sentMessageId: string | null = null;
+  if (reply !== null && event.replyToken) {
+    if (options.skipApiCall) {
+      result = reply;
+    } else {
+      const response = postReply(buildReplyPayload(event.replyToken, reply));
+      sentMessageId = parseSentMessageId(response);
+      result = response.getResponseCode();
+    }
+  }
 
-  const response = postReply(buildReplyPayload(event.replyToken, reply));
-  const sentMessageId = parseSentMessageId(response);
-  if (sessionKey !== null && sentMessageId !== null) {
+  // 返信を遅らせないよう、保存は返信の後に行う
+  const sessionKey = buildSessionKey(event.source);
+  if (sessionKey === null) return result;
+  // メンションの有無に関わらず保存する (後で誰かがこの発言に返信して紅を呼ぶため)
+  if (textMessage !== null && textMessage.text.length > 0) {
+    saveMessage({
+      sessionKey,
+      messageId: textMessage.id,
+      sender: "user",
+      text: textMessage.text,
+    });
+  }
+  if (reply !== null && sentMessageId !== null) {
     saveMessage({
       sessionKey,
       messageId: sentMessageId,
@@ -156,5 +159,5 @@ export function doPost(
       text: reply,
     });
   }
-  return response.getResponseCode();
+  return result;
 }

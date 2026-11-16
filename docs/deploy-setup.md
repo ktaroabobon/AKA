@@ -213,12 +213,14 @@ pbcopy < ~/.clasprc.json
 | `GCP_WIF_PROVIDER`    | 上記 1.6) の出力 (`projects/<NUM>/locations/global/workloadIdentityPools/github-pool/providers/github-provider`) |
 | `GCP_SERVICE_ACCOUNT` | `github-actions-deployer@aka-ai-api.iam.gserviceaccount.com`                                                     |
 | `CLASPRC_JSON`        | `~/.clasprc.json` の中身を改行込みで貼る                                                                         |
+| `GAS_DEPLOYMENT_ID`   | LINE の Webhook URL の `/macros/s/` と `/exec` の間 (7 章)                                                       |
 
 確認:
 
 ```bash
 gh secret list
 # CLASPRC_JSON         ...
+# GAS_DEPLOYMENT_ID    ...
 # GCP_SERVICE_ACCOUNT  ...
 # GCP_WIF_PROVIDER     ...
 ```
@@ -242,12 +244,15 @@ GitHub の Actions タブから **Deploy AKA** (`.github/workflows/deploy.yml`) 
 `Run workflow` で `workflow_dispatch` する。
 
 - 入力 `ref` にデプロイ対象のブランチ / タグ / SHA を指定（通常は `master`）
-- `Deploy AKA` 内で **jobs.bot → jobs.ai** の順に直列実行される
-  - `jobs.bot`: clasp credentials を復元し `pnpm --filter bot build` → `clasp push --force`
-  - `jobs.ai`: `needs: bot` 付きで WIF 認証 → `gcloud builds submit` → `gcloud run deploy`
+- `Deploy AKA` 内で **jobs.ai → jobs.bot** の順に直列実行される
+  (bot は新しい ai の API に依存するため、ai の反映を確認してから bot を公開する)
+  - `jobs.ai`: WIF 認証 → `gcloud builds submit` → `gcloud run deploy`
     → Cloud Run service URL の `/health` に対し smoke check (curl で HTTP コード確認)
-- `jobs.bot` が失敗した場合は `jobs.ai` は実行されず workflow が失敗する
-- `/health` smoke check が 2xx 以外なら workflow は失敗で終了する
+  - `jobs.bot`: `needs: ai` 付きで clasp credentials を復元し `pnpm --filter bot build`
+    → `clasp push --force` → `clasp update-deployment <GAS_DEPLOYMENT_ID>`
+    (詳細は 7 章)
+- `jobs.ai` が失敗した場合は `jobs.bot` は実行されず (bot は公開されない) workflow が失敗する
+- `/health` smoke check が 2xx 以外なら workflow は失敗で終了し、bot も公開されない
 
 > 旧 `ai-deploy.yml` / `bot-deploy.yml` は削除済み。これらの workflow を個別に
 > 起動する運用は終了しており、必ず `Deploy AKA` 経由で回す。
@@ -305,32 +310,30 @@ kill する。無停止で完了。
 
 ## 7. bot 反映 — GAS の新バージョン発行と LINE Webhook 確認
 
-`jobs.bot` の `clasp push --force` は **スクリプトエディタにコードを書き込む**
-だけで、LINE Webhook が叩く Web App URL の **配信バージョンは自動で
-進まない**。新コードを本番に反映するには、GAS で「新しいバージョン」を
-明示的に発行する必要がある (同じ Web App URL のまま、内部バージョンだけ進める)。
+`jobs.bot` は `clasp push --force` でスクリプトエディタにコードを書き込んだあと、
+`clasp update-deployment <GAS_DEPLOYMENT_ID> --description "Deploy AKA <短縮 SHA>"`
+で **新しいバージョンを作り、LINE Webhook が叩く既存の Web App デプロイに割り当てる**。
+deploymentId は変わらないので Web App URL も変わらず、LINE 側の設定変更は不要。
 
-### 手順
+> 新規デプロイ (`clasp create-deployment` や GAS 画面の「新しいデプロイ」) を
+> 作ると別 deploymentId の URL になり、LINE の Webhook が壊れる。workflow は
+> 必ず既存 deploymentId を更新する。
 
-1. GAS エディタを開く
-   - リポルートで `make console` を実行するか、以下の URL を直接開く:
-     - https://script.google.com/home/projects/1Mmc00qLMFH5seUCLg-uYDP8OGX7eKTgMNxYG7nOcevrIqEGA2XqNfnIu/edit
+### 前提: Secret `GAS_DEPLOYMENT_ID` の登録
 
-2. エディタ右上の **デプロイ** → **デプロイを管理** を開く
+4 章と同じ画面で Secret `GAS_DEPLOYMENT_ID` を登録する。値は LINE の Webhook URL
+(`https://script.google.com/macros/s/<deploymentId>/exec`) の `/macros/s/` と
+`/exec` の間の文字列。未登録のまま `Deploy AKA` を回すと `jobs.bot` の
+「Update GAS deployment to a new version」ステップが失敗する
+(push 済みでも Web App のバージョンは進まない)。
 
-3. LINE Webhook が使っている既存デプロイ (ウェブアプリ) の **編集** (鉛筆アイコン)
-   をクリック
+### 戻すとき
 
-4. **バージョン** を「**新しいバージョン**」に切り替え、必要に応じ説明
-   (例: `feat: conversation-context`) を入力して **デプロイ**
-
-5. 表示される **ウェブアプリ URL** が変わっていないことを確認
-   (`https://script.google.com/macros/s/<deploymentId>/exec` の deploymentId
-   は維持される)
-
-> 同じ deployment を編集して新バージョンに切り替える限り URL は不変。
-> 「新規デプロイ」を押すと別 deploymentId の URL になってしまい、LINE 側の
-> Webhook 更新が必要になるので **既存デプロイの編集経路を使う**こと。
+GAS エディタ (`make console`、または
+https://script.google.com/home/projects/1Mmc00qLMFH5seUCLg-uYDP8OGX7eKTgMNxYG7nOcevrIqEGA2XqNfnIu/edit)
+の **デプロイ** → **デプロイを管理** → LINE Webhook が使っている既存デプロイの
+**編集** (鉛筆アイコン) で、**バージョン** に前のバージョンを選んで **デプロイ** する。
+各バージョンの説明に commit SHA が入っているので、戻したい commit のバージョンを選ぶ。
 
 ### LINE Messaging API 側の確認
 
@@ -338,7 +341,7 @@ LINE Developers Console:
 
 - https://developers.line.biz/console/channel/1660869337/messaging-api
 
-ここで **Webhook URL** が手順 5 の URL と一致していることを確認する。
+ここで **Webhook URL** の deploymentId が `GAS_DEPLOYMENT_ID` と一致していることを確認する。
 通常は何も触らなくてよい (deploymentId 不変のため)。URL を貼り直した場合は
 「検証」ボタンで疎通テストすると `Success` が返ることを確認する。
 

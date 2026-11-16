@@ -94,11 +94,13 @@ make oapi/check-gen   # CI 用: 生成型と yaml の差分検出
 ## デプロイ
 
 - 単一 workflow **`Deploy AKA`** (`.github/workflows/deploy.yml`, `workflow_dispatch` のみ) で
-  **bot → ai** を直列実行する。`jobs.ai` は `needs: bot` ゲートで bot 失敗時には起動しない。
-  最後に Cloud Run の `/health` smoke check (curl) を行い、非 2xx なら workflow を失敗で終了
-- bot job: `CLASPRC_JSON` Secret を復元 → `pnpm --filter bot build` → `clasp push --force`
+  **ai → bot** を直列実行する (bot は新しい ai の API に依存するため)。ai job の最後に
+  Cloud Run の `/health` smoke check (curl) を行い、非 2xx なら workflow を失敗で終了。
+  `jobs.bot` は `needs: ai` ゲートで ai 失敗時には起動しない
 - ai job: WIF (`GCP_WIF_PROVIDER` / `GCP_SERVICE_ACCOUNT`) → Cloud Build → Cloud Run。
   Cloud Run のランタイム SA は `aka-ai-api-sa` で、Firestore 用に `roles/datastore.user` を必須付与
+- bot job: `CLASPRC_JSON` Secret を復元 → `pnpm --filter bot build` → `clasp push --force`
+  → `clasp update-deployment` で `GAS_DEPLOYMENT_ID` Secret の既存 Web App デプロイを新バージョンに更新
 - 詳細セットアップ (IAM / Secret 登録 / Firestore TTL / GAS 新バージョン発行) は `docs/deploy-setup.md`
 
 ---

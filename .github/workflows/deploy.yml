@@ -1,11 +1,11 @@
 name: Deploy AKA
 
-# 統合 CD workflow: bot (GAS) を先にデプロイし、成功時のみ ai (Cloud Run)
-# をデプロイする。conversation-context spec (Req 9.1〜9.7) で導入。
+# 統合 CD workflow: ai (Cloud Run) を先にデプロイし、/health の smoke test が
+# 通った場合のみ bot (GAS) を公開する。bot は新しい ai の API に依存するため、
+# ai が反映される前に bot を公開すると、新しい bot が古い ai を呼んでしまう。
 #
 # 事前セットアップ (WIF SA / GitHub Secrets / Firestore TTL 等) は
 # docs/deploy-setup.md を参照。
-# - bot ジョブ: secrets.CLASPRC_JSON
 # - ai ジョブ: secrets.GCP_WIF_PROVIDER, secrets.GCP_SERVICE_ACCOUNT
 #   - SA に必要なロール:
 #     - roles/cloudbuild.builds.editor
@@ -14,6 +14,8 @@ name: Deploy AKA
 #     - roles/storage.admin
 #     - roles/artifactregistry.reader
 #     - roles/datastore.user  (Firestore conversation collection への RW)
+# - bot ジョブ: secrets.CLASPRC_JSON, secrets.GAS_DEPLOYMENT_ID
+#   (LINE Webhook に登録済みの Web App の deploymentId)
 
 on:
   workflow_dispatch:
@@ -23,6 +25,12 @@ on:
         required: false
         type: string
         default: master
+
+# 2 回目の dispatch は 1 回目の完了を待つ。並行すると ai と bot が
+# 別 commit の組み合わせで本番に残りうるため。
+concurrency:
+  group: deploy-aka
+  cancel-in-progress: false
 
 permissions:
   id-token: write
@@ -40,14 +48,84 @@ env:
   RUNTIME_SA: aka-ai-api-sa@aka-ai-api.iam.gserviceaccount.com
 
 jobs:
+  ai:
+    name: ai → Cloud Run
+    runs-on: ubuntu-latest
+    environment: production
+    # bot は ai と同じ commit を公開する (ref がブランチだと、Cloud Build の間に
+    # 先へ進んだ commit を bot だけが拾ってしまうため)
+    outputs:
+      sha: ${{ steps.tag.outputs.sha }}
+    steps:
+      # bot の公開に必要な Secret が無いと、ai だけ本番に反映されて止まる。
+      # 何も反映しないうちに失敗させる。
+      - name: Check GAS_DEPLOYMENT_ID is set
+        env:
+          GAS_DEPLOYMENT_ID: ${{ secrets.GAS_DEPLOYMENT_ID }}
+        run: |
+          if [ -z "$GAS_DEPLOYMENT_ID" ]; then
+            echo "::error::Secret GAS_DEPLOYMENT_ID is not set. Set it to the deploymentId of the Web App used by the LINE Webhook (see docs/deploy-setup.md)."
+            exit 1
+          fi
+
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Authenticate to Google Cloud (Workload Identity Federation)
+        id: auth
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v3
+        with:
+          project_id: ${{ env.GCP_PROJECT_ID }}
+
+      - name: Resolve image tag (commit SHA)
+        id: tag
+        run: |
+          echo "value=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Build & push image (Cloud Build)
+        run: |
+          gcloud builds submit \
+            --config cloudbuild.yaml \
+            --substitutions=_IMAGE_TAG=${{ steps.tag.outputs.value }} \
+            .
+
+      - name: Deploy to Cloud Run
+        run: |
+          gcloud run deploy ${{ env.SERVICE_NAME }} \
+            --image ${{ env.IMAGE }}:${{ steps.tag.outputs.value }} \
+            --region ${{ env.GCP_REGION }} \
+            --service-account ${{ env.RUNTIME_SA }} \
+            --allow-unauthenticated \
+            --set-env-vars "^|^NODE_ENV=production|GEMINI_MODELS=${{ env.GEMINI_MODELS }}|GCP_PROJECT_ID=${{ env.GCP_PROJECT_ID }}"
+
+      - name: Smoke test (/health)
+        run: |
+          URL=$(gcloud run services describe ${{ env.SERVICE_NAME }} \
+            --region ${{ env.GCP_REGION }} \
+            --format='value(status.url)')
+          echo "Service URL: $URL"
+          # HTTP code が 2xx でなければ workflow を失敗で終了する (Req 9.4)
+          # 自動 rollback はしない (Req 9.7)、docs/deploy-setup.md の手順で手動対応
+          curl -fsS "$URL/health"
+
   bot:
-    name: bot → clasp push (GAS)
+    name: bot → GAS (clasp push + update-deployment)
+    # ai の反映と smoke test が成功したときだけ bot を公開する
+    needs: ai
     runs-on: ubuntu-latest
     environment: production
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: ${{ inputs.ref }}
+          ref: ${{ needs.ai.outputs.sha }}
 
       - uses: pnpm/action-setup@v6
         with:
@@ -82,54 +160,20 @@ jobs:
       - name: clasp push
         run: cd bot && pnpm clasp push --force
 
-  ai:
-    name: ai → Cloud Run
-    needs: bot
-    runs-on: ubuntu-latest
-    environment: production
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          ref: ${{ inputs.ref }}
-
-      - name: Authenticate to Google Cloud (Workload Identity Federation)
-        id: auth
-        uses: google-github-actions/auth@v3
-        with:
-          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
-          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
-
-      - name: Setup gcloud
-        uses: google-github-actions/setup-gcloud@v3
-        with:
-          project_id: ${{ env.GCP_PROJECT_ID }}
-
-      - name: Resolve image tag (commit SHA)
-        id: tag
-        run: echo "value=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
-
-      - name: Build & push image (Cloud Build)
+      # push だけではスクリプトエディタのコードが変わるだけで、LINE Webhook が
+      # 叩く Web App の配信バージョンは進まない。新バージョンを作って既存の
+      # deploymentId に割り当てる (新規デプロイだと URL が変わり Webhook が壊れる)。
+      - name: Update GAS deployment to a new version
+        env:
+          GAS_DEPLOYMENT_ID: ${{ secrets.GAS_DEPLOYMENT_ID }}
         run: |
-          gcloud builds submit \
-            --config cloudbuild.yaml \
-            --substitutions=_IMAGE_TAG=${{ steps.tag.outputs.value }} \
-            .
-
-      - name: Deploy to Cloud Run
-        run: |
-          gcloud run deploy ${{ env.SERVICE_NAME }} \
-            --image ${{ env.IMAGE }}:latest \
-            --region ${{ env.GCP_REGION }} \
-            --service-account ${{ env.RUNTIME_SA }} \
-            --allow-unauthenticated \
-            --set-env-vars "^|^NODE_ENV=production|GEMINI_MODELS=${{ env.GEMINI_MODELS }}|GCP_PROJECT_ID=${{ env.GCP_PROJECT_ID }}"
-
-      - name: Smoke test (/health)
-        run: |
-          URL=$(gcloud run services describe ${{ env.SERVICE_NAME }} \
-            --region ${{ env.GCP_REGION }} \
-            --format='value(status.url)')
-          echo "Service URL: $URL"
-          # HTTP code が 2xx でなければ workflow を失敗で終了する (Req 9.4)
-          # 自動 rollback はしない (Req 9.7)、docs/deploy-setup.md の手順で手動対応
-          curl -fsS "$URL/health"
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          # clasp v3 は API の INVALID_ARGUMENT などを表示しても exit 0 で終わることが
+          # あるため、--json の出力に versionNumber が入っていることで成功を判定する。
+          OUT=$(cd bot && pnpm exec clasp update-deployment "$GAS_DEPLOYMENT_ID" \
+            --description "Deploy AKA ${SHORT_SHA}" --json)
+          VERSION=$(printf '%s' "$OUT" | jq -er '.versionNumber') || {
+            echo "::error::clasp update-deployment did not return a version number"
+            exit 1
+          }
+          echo "Updated GAS Web App deployment to version ${VERSION} (Deploy AKA ${SHORT_SHA})"

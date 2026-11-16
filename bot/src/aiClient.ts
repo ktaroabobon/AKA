@@ -1,4 +1,5 @@
 import { getAiBaseUrl, getGeminiApiKey } from "./config.js";
+import { fetchQuotedImage } from "./lineContent.js";
 import type { components } from "./api/generated.js";
 
 type ChatRequest = components["schemas"]["ChatRequest"];
@@ -45,6 +46,26 @@ export function saveMessage(input: SaveMessageRequest): void {
 }
 
 /**
+ * 返信先のテキストが保存されていないと確かめられたか (#76)。404 のときだけ true。
+ * ai の一時障害 (5xx・例外) は「無い」と区別できないので false にし、
+ * 返信先のテキストがあるかもしれない前提で /chat/genai に任せる。
+ */
+function isQuotedTextMissing(messageId: string, sessionKey: string): boolean {
+  try {
+    const response = UrlFetchApp.fetch(
+      aiUrl(
+        `/messages/${encodeURIComponent(messageId)}?sessionKey=${encodeURIComponent(sessionKey)}`,
+      ),
+      { method: "get", muteHttpExceptions: true },
+    );
+    return response.getResponseCode() === 404;
+  } catch (err) {
+    console.error("aiClient: GET /messages failed", err);
+    return false;
+  }
+}
+
+/**
  * AKA-AI の /chat/genai を叩いて応答テキストを取得する。
  * - GAS の UrlFetchApp を使う（fetch は GAS にないため）
  * - Script Properties から API キーを取得し base64 化してリクエストに含める
@@ -56,11 +77,19 @@ export function chatWithAiResult(
   sessionKey: string,
   quotedMessageId?: string,
 ): AiClientResult {
-  // 本文が空でも返信先があれば AI に投げる (返信先について応答させる #75)
-  if ((!prompt || prompt.trim().length === 0) && !quotedMessageId) {
+  if (!sessionKey || sessionKey.length === 0) {
     return { ok: false, reason: "skipped" };
   }
-  if (!sessionKey || sessionKey.length === 0) {
+  // 返信先のテキストが無いと分かったときだけ、返信先は画像かもしれないので取りに行く (#76)
+  const quotedTextMissing =
+    !!quotedMessageId && isQuotedTextMissing(quotedMessageId, sessionKey);
+  const quotedImage =
+    quotedMessageId && quotedTextMissing
+      ? fetchQuotedImage(quotedMessageId)
+      : null;
+  // 本文が空でも返信先 (テキストか画像) があれば AI に投げる (返信先について応答させる #75, #76)
+  const hasQuote = !!quotedMessageId && (!quotedTextMissing || !!quotedImage);
+  if ((!prompt || prompt.trim().length === 0) && !hasQuote) {
     return { ok: false, reason: "skipped" };
   }
 
@@ -75,6 +104,7 @@ export function chatWithAiResult(
     prompt,
     encrypted_api_key: encryptedApiKey,
     ...(quotedMessageId ? { quotedMessageId } : {}),
+    ...(quotedImage ? { quotedImage } : {}),
   };
 
   let response: GoogleAppsScript.URL_Fetch.HTTPResponse;

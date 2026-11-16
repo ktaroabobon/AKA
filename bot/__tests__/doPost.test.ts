@@ -137,4 +137,31 @@ describe("doPost: message saving (#75)", () => {
       { replyToken: "rt", messages: [{ type: "text", text: "雨もいいね！" }] },
     ]);
   });
+
+  it("sends quotedMessageId to /chat/genai when mentioned (#75)", () => {
+    routeFetch({
+      [CHAT_URL]: () => fakeResponse(200, { reply: "海いいね！" }),
+    });
+    const event = groupTextEvent("@紅 この話どう思う？", true);
+    event.message = {
+      ...event.message!,
+      quotedMessageId: "q-1",
+    } as LineEvent["message"];
+
+    post(event);
+
+    expect(callsTo(CHAT_URL)).toMatchObject([{ quotedMessageId: "q-1" }]);
+  });
+
+  it("does not call AI for a non-mentioned reply with quotedMessageId", () => {
+    routeFetch({});
+    const event = groupTextEvent("それな", false);
+    event.message = {
+      ...event.message!,
+      quotedMessageId: "q-1",
+    } as LineEvent["message"];
+
+    expect(post(event)).toBeNull();
+    expect(callsTo(CHAT_URL)).toEqual([]);
+  });
 });

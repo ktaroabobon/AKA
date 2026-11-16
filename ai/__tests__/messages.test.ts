@@ -130,3 +130,42 @@ describe("POST /messages", () => {
     ).rejects.toBeInstanceOf(MessageStoreError);
   });
 });
+
+describe("MessageStore.get", () => {
+  function makeReadFirestore(data: unknown) {
+    const get = vi.fn(async () => ({
+      exists: data !== undefined,
+      data: () => data,
+    }));
+    const firestore = {
+      collection: vi.fn(() => ({ doc: vi.fn(() => ({ get })) })),
+    } as unknown as Firestore;
+    return firestore;
+  }
+
+  const now = new Date("2026-11-16T00:00:00Z");
+  const stored = {
+    sessionKey: "group:C1",
+    sender: "user",
+    text: "hi",
+    expiresAt: Timestamp.fromMillis(now.getTime() + 1000),
+  };
+
+  it("returns the stored message before expiresAt", async () => {
+    const store = createMessageStore(makeReadFirestore(stored));
+    await expect(store.get("m-1", now)).resolves.toEqual(stored);
+  });
+
+  it("returns null when expired or missing", async () => {
+    const expired = {
+      ...stored,
+      expiresAt: Timestamp.fromMillis(now.getTime() - 1),
+    };
+    await expect(
+      createMessageStore(makeReadFirestore(expired)).get("m-1", now),
+    ).resolves.toBeNull();
+    await expect(
+      createMessageStore(makeReadFirestore(undefined)).get("m-1", now),
+    ).resolves.toBeNull();
+  });
+});

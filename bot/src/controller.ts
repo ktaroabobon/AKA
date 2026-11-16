@@ -10,11 +10,17 @@ export interface GenerateReplyInput {
   userMessage: string;
   isBotMentioned: boolean;
   source: LineSource;
+  /** 返信（引用）先の LINE メッセージ ID (#75)。 */
+  quotedMessageId?: string;
 }
 
 export interface GenerateReplyDeps {
   /** AKA-AI を叩いて応答を取得する関数。テストで差し替え可能。 */
-  ai?: (prompt: string, sessionKey: string) => AiClientResult;
+  ai?: (
+    prompt: string,
+    sessionKey: string,
+    quotedMessageId?: string,
+  ) => AiClientResult;
   /** AI 呼び出し失敗時の通常フォールバック。 */
   fallback?: () => string;
   /** AKA-AI が 5xx を返したときの専用フォールバック。 */
@@ -56,7 +62,7 @@ export function generateReply(
   const sessionKey = buildKey(input.source);
   if (sessionKey === null) return fallback();
 
-  const aiResult = ai(input.userMessage, sessionKey);
+  const aiResult = ai(input.userMessage, sessionKey, input.quotedMessageId);
   if (aiResult.ok) return aiResult.reply;
   if (aiResult.reason === "server_error") return serverErrorFallback();
   return fallback();

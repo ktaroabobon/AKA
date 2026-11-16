@@ -9,6 +9,11 @@ import {
   type GenaiService,
 } from "../services/genai.js";
 import { SessionStoreError, type SessionService } from "../services/session.js";
+import {
+  MessageStoreError,
+  type MessageStore,
+  type StoredMessage,
+} from "../services/messageStore.js";
 import type { MaskResult } from "../services/moderation.js";
 import { SAFETY_FALLBACK_MESSAGES } from "../prompts/aka.js";
 import { pickRandom } from "../lib/pickRandom.js";
@@ -23,17 +28,56 @@ export type MaskFn = (text: string) => MaskResult;
 export interface ChatRouteDeps {
   moderation: MaskFn;
   sessionService: SessionService;
+  messageStore: MessageStore;
   genaiService: GenaiService;
   logger: Logger;
+}
+
+/**
+ * 返信先の発言と今の発話を、Gemini がどちらがどちらか分かる 1 つの発話にする。
+ * 返信先が無ければ今の発話をそのまま返す (従来どおり)。
+ */
+function buildUserText(
+  maskedPrompt: string,
+  quoted: StoredMessage | null,
+): string {
+  if (!quoted) return maskedPrompt;
+  const who = quoted.sender === "bot" ? "紅の発言" : "誰かの発言";
+  const current =
+    maskedPrompt.length > 0
+      ? maskedPrompt
+      : "（本文なし。返信先の発言について話しかけている）";
+  return `[返信先の${who}]\n${quoted.text}\n\n[今の発話]\n${current}`;
 }
 
 export function createChatRoute({
   moderation,
   sessionService,
+  messageStore,
   genaiService,
   logger,
 }: ChatRouteDeps) {
   const app = new Hono();
+
+  /** 同じ sessionKey の保存済みメッセージだけを返す (別のグループの発言を読ませない)。 */
+  async function findQuoted(
+    quotedMessageId: string | undefined,
+    sessionKey: string,
+    now: Date,
+  ): Promise<StoredMessage | null> {
+    if (quotedMessageId === undefined) return null;
+    try {
+      const quoted = await messageStore.get(quotedMessageId, now);
+      return quoted?.sessionKey === sessionKey ? quoted : null;
+    } catch (err) {
+      // 返信先が読めなくても、返信先なしとして応答を続ける
+      if (err instanceof MessageStoreError) {
+        logger.warn({ err }, "failed to read quoted message");
+        return null;
+      }
+      throw err;
+    }
+  }
 
   app.post(
     "/chat/genai",
@@ -46,7 +90,8 @@ export function createChatRoute({
       }
     }),
     async (c) => {
-      const { sessionKey, prompt, encrypted_api_key } = c.req.valid("json");
+      const { sessionKey, prompt, encrypted_api_key, quotedMessageId } =
+        c.req.valid("json");
 
       // Step 1: 入力テキストをマスク (Req 5.1, 5.2, 5.5)
       const maskedInput = moderation(prompt);
@@ -54,6 +99,16 @@ export function createChatRoute({
       const profanityRedactions = maskedInput.redactionCount.profanity;
 
       const now = new Date();
+
+      const quoted = await findQuoted(quotedMessageId, sessionKey, now);
+      // 本文が空で返信先も無いなら、従来どおり話すことが無い
+      if (maskedInput.masked.length === 0 && !quoted) {
+        return c.json(
+          { error: "invalid_request", message: "prompt must not be empty" },
+          400,
+        );
+      }
+      const userText = buildUserText(maskedInput.masked, quoted);
 
       try {
         // Step 2: 履歴取得 (Req 3.1, 3.2)
@@ -66,7 +121,7 @@ export function createChatRoute({
         try {
           replyText = await genaiService.generate({
             history,
-            userText: maskedInput.masked,
+            userText,
             encryptedApiKey: encrypted_api_key,
           });
         } catch (err) {
@@ -99,7 +154,7 @@ export function createChatRoute({
         // Step 5: 履歴追記 (Req 2.5, 4.4, 5.4 — マスク後のみを保存)
         await sessionService.append(
           sessionKey,
-          maskedInput.masked,
+          userText,
           maskedReply.masked,
           now,
         );
@@ -109,6 +164,7 @@ export function createChatRoute({
           {
             sessionKey,
             historyTurns,
+            quoted: quoted !== null,
             geminiDurationMs,
             piiRedactions: piiRedactions + replyPii,
             profanityRedactions: profanityRedactions + replyProfanity,

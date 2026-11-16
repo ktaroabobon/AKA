@@ -14,6 +14,11 @@ import {
   type ConversationMessage,
   type SessionService,
 } from "../src/services/session.js";
+import type {
+  MessageStore,
+  StoredMessage,
+} from "../src/services/messageStore.js";
+import { Timestamp } from "@google-cloud/firestore";
 import { SAFETY_FALLBACK_MESSAGES } from "../src/prompts/aka.js";
 import type { Logger } from "../src/lib/logger.js";
 
@@ -30,7 +35,8 @@ function silentLogger(): Logger {
 
 function makeMask(): MaskFn {
   return vi.fn((text: string) => ({
-    masked: `[masked]${text}`,
+    // 実物の mask() と同じく空文字は空文字のまま
+    masked: text === "" ? "" : `[masked]${text}`,
     redactionCount: { pii: 0, profanity: 0 },
   }));
 }
@@ -50,13 +56,27 @@ function makeGenai(overrides: Partial<GenaiService> = {}): GenaiService {
   };
 }
 
+function makeMessageStore(stored: StoredMessage | null = null): MessageStore {
+  return {
+    save: vi.fn(async () => undefined),
+    get: vi.fn(async () => stored),
+  };
+}
+
 function makeApp(deps: Partial<ChatRouteDeps> = {}) {
   const moderation = deps.moderation ?? makeMask();
   const sessionService = deps.sessionService ?? makeSession();
+  const messageStore = deps.messageStore ?? makeMessageStore();
   const genaiService = deps.genaiService ?? makeGenai();
   const logger = deps.logger ?? silentLogger();
   return {
-    app: createChatRoute({ moderation, sessionService, genaiService, logger }),
+    app: createChatRoute({
+      moderation,
+      sessionService,
+      messageStore,
+      genaiService,
+      logger,
+    }),
     moderation,
     sessionService,
     genaiService,
@@ -261,5 +281,95 @@ describe("POST /chat/genai", () => {
 
     expect(genaiService.generate).toHaveBeenCalledTimes(1);
     expect(sessionService.append).toHaveBeenCalledTimes(1);
+  });
+
+  describe("quotedMessageId (#75)", () => {
+    const QUOTED: StoredMessage = {
+      sessionKey: "group:C1",
+      sender: "user",
+      text: "週末は海に行くよ",
+      expiresAt: Timestamp.fromMillis(Date.now() + 60_000),
+    };
+
+    async function postWithQuote(
+      stored: StoredMessage | null,
+      prompt = "この話どう思う？",
+    ) {
+      const messageStore = makeMessageStore(stored);
+      const { app, genaiService, sessionService } = makeApp({
+        messageStore,
+      });
+      const res = await app.fetch(
+        makeRequest({
+          sessionKey: "group:C1",
+          prompt,
+          encrypted_api_key: "enc-key",
+          quotedMessageId: "q-1",
+        }),
+      );
+      const generate = genaiService.generate as ReturnType<typeof vi.fn>;
+      return { res, messageStore, generate, sessionService };
+    }
+
+    it("includes the quoted text in the user text for the same sessionKey", async () => {
+      const { res, messageStore, generate, sessionService } =
+        await postWithQuote(QUOTED);
+
+      expect(res.status).toBe(200);
+      expect(messageStore.get).toHaveBeenCalledWith("q-1", expect.any(Date));
+      const userText =
+        "[返信先の誰かの発言]\n週末は海に行くよ\n\n[今の発話]\n[masked]この話どう思う？";
+      expect(generate.mock.calls[0][0].userText).toBe(userText);
+      // 組み立てた発話が user の 1 行として履歴に入る
+      const appendCall = (sessionService.append as ReturnType<typeof vi.fn>)
+        .mock.calls[0];
+      expect(appendCall[1]).toBe(userText);
+    });
+
+    it("labels a quoted bot message as 紅の発言", async () => {
+      const { generate } = await postWithQuote({ ...QUOTED, sender: "bot" });
+
+      expect(generate.mock.calls[0][0].userText).toBe(
+        "[返信先の紅の発言]\n週末は海に行くよ\n\n[今の発話]\n[masked]この話どう思う？",
+      );
+    });
+
+    it("ignores a quoted message from another sessionKey", async () => {
+      const { generate } = await postWithQuote({
+        ...QUOTED,
+        sessionKey: "group:OTHER",
+      });
+
+      expect(generate.mock.calls[0][0].userText).toBe(
+        "[masked]この話どう思う？",
+      );
+    });
+
+    it("answers without the quote when it is not found", async () => {
+      const { generate } = await postWithQuote(null);
+
+      expect(generate.mock.calls[0][0].userText).toBe(
+        "[masked]この話どう思う？",
+      );
+    });
+
+    it("calls Gemini about the quote even when the prompt is empty", async () => {
+      const { res, generate } = await postWithQuote(QUOTED, "");
+
+      expect(res.status).toBe(200);
+      expect(generate.mock.calls[0][0].userText).toBe(
+        "[返信先の誰かの発言]\n週末は海に行くよ\n\n[今の発話]\n（本文なし。返信先の発言について話しかけている）",
+      );
+    });
+
+    it("returns 400 invalid_request when the prompt is empty and the quote is not found", async () => {
+      const { res, generate } = await postWithQuote(null, "");
+
+      expect(res.status).toBe(400);
+      await expect(res.json()).resolves.toMatchObject({
+        error: "invalid_request",
+      });
+      expect(generate).not.toHaveBeenCalled();
+    });
   });
 });

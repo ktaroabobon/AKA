@@ -137,6 +137,10 @@ export function doPost(
     userMessage: mention.userMessage,
     isBotMentioned: mention.isBotMentioned,
     source: event.source,
+    quotedMessageId:
+      message && "quotedMessageId" in message
+        ? message.quotedMessageId
+        : undefined,
   });
 
   if (reply === null || !event.replyToken) return null;

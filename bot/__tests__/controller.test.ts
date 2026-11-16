@@ -94,7 +94,7 @@ describe("generateReply", () => {
       },
       { ai, fallback },
     );
-    expect(ai).toHaveBeenCalledWith("今何してたの？", "user:U123");
+    expect(ai).toHaveBeenCalledWith("今何してたの？", "user:U123", undefined);
     expect(reply).toBe("あかはね〜、今日も元気だよ〜！");
     expect(fallback).not.toHaveBeenCalled();
   });
@@ -110,7 +110,7 @@ describe("generateReply", () => {
       },
       { ai },
     );
-    expect(ai).toHaveBeenCalledWith("今何してたの？", "group:C456");
+    expect(ai).toHaveBeenCalledWith("今何してたの？", "group:C456", undefined);
     expect(reply).toBe("ぼくはね〜、グループでも元気〜！");
   });
 
@@ -144,7 +144,7 @@ describe("generateReply", () => {
       { ai, sessionKeyBuilder },
     );
     expect(sessionKeyBuilder).toHaveBeenCalledWith(USER_SOURCE);
-    expect(ai).toHaveBeenCalledWith("なんか喋って", "override:Z");
+    expect(ai).toHaveBeenCalledWith("なんか喋って", "override:Z", undefined);
   });
 
   it("AI failure (null) → fallback is used (sessionKey path)", () => {
@@ -160,7 +160,7 @@ describe("generateReply", () => {
       { ai, fallback },
     );
     expect(ai).toHaveBeenCalledOnce();
-    expect(ai).toHaveBeenCalledWith("なんか喋って", "user:U123");
+    expect(ai).toHaveBeenCalledWith("なんか喋って", "user:U123", undefined);
     expect(fallback).toHaveBeenCalledOnce();
     expect(reply).toBe("random!");
   });
@@ -198,5 +198,21 @@ describe("generateReply", () => {
     expect(reply).toBe("あかはお昼寝しちゃった…むにゃむにゃ");
     expect(serverErrorFallback).toHaveBeenCalledOnce();
     expect(fallback).not.toHaveBeenCalled();
+  });
+
+  it("passes quotedMessageId to AI even when the mention has no text (#75)", () => {
+    const ai = vi.fn(() => aiReply("海いいね！"));
+    const reply = generateReply(
+      {
+        eventType: "message",
+        userMessage: "",
+        isBotMentioned: true,
+        source: GROUP_SOURCE,
+        quotedMessageId: "q-1",
+      },
+      { ai },
+    );
+    expect(reply).toBe("海いいね！");
+    expect(ai).toHaveBeenCalledWith("", "group:C456", "q-1");
   });
 });

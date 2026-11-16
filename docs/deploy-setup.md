@@ -165,6 +165,27 @@ gcloud firestore fields ttls list --project=aka-ai-api
 # conversation.expiresAt  ACTIVE
 ```
 
+### `messages` collection の TTL ポリシー
+
+返信（引用）先の本文を読むため、ai は LINE のメッセージ（マスク後のテキストだけ）を
+`messages` collection に保存する（#75）。`expiresAt`（保存時刻 + 7 日）を TTL に指定し、
+7 日経過したドキュメントを自動削除させる。設定するまでは 7 日で消えない。
+
+```bash
+gcloud firestore fields ttls update expiresAt \
+  --collection-group=messages \
+  --enable-ttl \
+  --project=aka-ai-api
+```
+
+確認:
+
+```bash
+gcloud firestore fields ttls list --project=aka-ai-api
+# conversation.expiresAt  ACTIVE
+# messages.expiresAt      ACTIVE
+```
+
 > TTL の伝搬には数分〜十数分かかることがある。`State: CREATING` のうちは
 > 即時削除されない点に注意。
 

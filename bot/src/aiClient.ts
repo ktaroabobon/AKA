@@ -26,7 +26,6 @@ function aiUrl(path: string): string {
  * 保存に失敗しても応答は止めないため、例外は投げずにログだけ残す。
  */
 export function saveMessage(input: SaveMessageRequest): void {
-  if (!input.text || !input.sessionKey || !input.messageId) return;
   try {
     const response = UrlFetchApp.fetch(aiUrl("/messages"), {
       method: "post",
@@ -36,7 +35,9 @@ export function saveMessage(input: SaveMessageRequest): void {
     });
     const status = response.getResponseCode();
     if (status !== 204) {
-      console.warn(`aiClient: /messages returned ${status}`);
+      console.warn(
+        `aiClient: /messages returned ${status} (body=${response.getContentText().slice(0, 200)})`,
+      );
     }
   } catch (err) {
     console.error("aiClient: /messages fetch failed", err);

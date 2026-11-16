@@ -1,7 +1,10 @@
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
-import { saveMessageRequestSchema } from "../schemas/messages.js";
+import {
+  findMessageQuerySchema,
+  saveMessageRequestSchema,
+} from "../schemas/messages.js";
 import {
   MessageStoreError,
   type MessageStore,
@@ -60,6 +63,37 @@ export function createMessagesRoute({
         },
         "message saved",
       );
+      return c.body(null, 204);
+    },
+  );
+
+  // bot が「返信先のテキストがあるか」だけを確かめる (#76)。本文は返さない。
+  app.get(
+    "/messages/:messageId",
+    zValidator("query", findMessageQuerySchema, (result, c) => {
+      if (!result.success) {
+        return c.json(
+          { error: "invalid_request", detail: z.flattenError(result.error) },
+          400,
+        );
+      }
+    }),
+    async (c) => {
+      const messageId = c.req.param("messageId");
+      const { sessionKey } = c.req.valid("query");
+      try {
+        const found = await messageStore.get(messageId, new Date());
+        // 別のグループの発言の有無も漏らさない
+        if (found?.sessionKey !== sessionKey) {
+          return c.json({ error: "not_found" }, 404);
+        }
+      } catch (err) {
+        if (err instanceof MessageStoreError) {
+          logger.error({ err }, "message store failed");
+          return c.json({ error: "internal_error" }, 500);
+        }
+        throw err;
+      }
       return c.body(null, 204);
     },
   );

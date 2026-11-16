@@ -9,3 +9,7 @@ export const saveMessageRequestSchema = z.object({
   sender: z.enum(["user", "bot"]),
   text: z.string().min(1).max(MAX_TEXT_LENGTH),
 });
+
+export const findMessageQuerySchema = z.object({
+  sessionKey: z.string().min(1, "sessionKey must not be empty"),
+});

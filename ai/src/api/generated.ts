@@ -58,6 +58,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/messages/{messageId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 保存済みメッセージがあるかだけを返す（本文は返さない）
+         * @description bot が返信先のテキストが保存済みかを確かめ、無ければ画像を取りに行くために使う。
+         *     期限切れ・`sessionKey` 不一致は 404。
+         */
+        get: operations["getMessage"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -117,7 +138,7 @@ export interface components {
             reply: string;
         };
         ErrorResponse: {
-            /** @description エラーコード（invalid_request / invalid_api_key / genai_failed / internal_error） */
+            /** @description エラーコード（invalid_request / invalid_api_key / not_found / genai_failed / internal_error） */
             error: string;
             /** @description 補足メッセージ */
             message?: string;
@@ -226,6 +247,56 @@ export interface operations {
             };
             /** @description 不正なリクエスト */
             400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description 内部エラー（Firestore の失敗など） */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getMessage: {
+        parameters: {
+            query: {
+                sessionKey: string;
+            };
+            header?: never;
+            path: {
+                /** @description LINE のメッセージ ID */
+                messageId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 同じ sessionKey の保存済みメッセージがある */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 不正なリクエスト */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description 無い（期限切れ・sessionKey 不一致を含む） */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

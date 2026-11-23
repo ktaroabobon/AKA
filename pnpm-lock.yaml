@@ -54,8 +54,8 @@ importers:
         specifier: ^8.6.0
         version: 8.6.0
       '@google/genai':
-        specifier: ^3.3.0
-        version: 3.3.0(@modelcontextprotocol/sdk@1.29.0(zod@4.4.3))
+        specifier: ^3.6.1
+        version: 3.6.1(@modelcontextprotocol/sdk@1.29.0(zod@4.4.3))
       '@hono/node-server':
         specifier: ^2.1.9
         version: 2.1.9(hono@4.13.19)
@@ -350,8 +350,8 @@ packages:
     engines: {node: ' >=20.0.0'}
     hasBin: true
 
-  '@google/genai@3.3.0':
-    resolution: {integrity: sha512-XLjXedj0X8UrULZz1GnlTMSQxBDFdr+NCKZkOBaSVVYqmK30C6FCnKW31Ppn0ItO9DpNspCHFui257kPNpumKQ==}
+  '@google/genai@3.6.1':
+    resolution: {integrity: sha512-DQIkZkl+VoZc+RUSaJ41vRuywjQDpP0t/oUf5/ddQhNW6JsPjVULW2EgHmuJ1mrr6ACtrmUdPlqtNXF1yfKySg==}
     engines: {node: '>=22.0.0'}
     peerDependencies:
       '@modelcontextprotocol/sdk': ^1.25.2
@@ -2774,7 +2774,7 @@ snapshots:
       - supports-color
       - typescript
 
-  '@google/genai@3.3.0(@modelcontextprotocol/sdk@1.29.0(zod@4.4.3))':
+  '@google/genai@3.6.1(@modelcontextprotocol/sdk@1.29.0(zod@4.4.3))':
     dependencies:
       google-auth-library: 10.9.1
       p-retry: 4.6.2

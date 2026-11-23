@@ -35,11 +35,11 @@
 #### `bot/`
 
 | ファイル                    | 現状                                                                                                                                                     |
-| --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- | -------------- |
+| --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `bot/src/controller.ts`     | ルーティングは `join → 完全一致 → メンション+自己紹介 → メンション+フリー文 → AI fallback (chatWithAi)` と段階化済。AI 失敗時の random fallback も実装済 |
 | `bot/src/aiClient.ts`       | `UrlFetchApp.fetch` で `/chat/genai` POST。`{ prompt, encrypted_api_key }` 送信。エラー時 `null` 返却                                                    |
 | `bot/src/lineMessageApi.ts` | `event.source.type` の参照箇所は `isBotMentioned()` (L34-45)。`user / group / room` 全分岐対応済                                                         |
-| `bot/src/types/line.ts`     | `LineSourceType = "user"                                                                                                                                 | "group" | "room"` 定義済 |
+| `bot/src/types/line.ts`     | `LineSourceType = "user" \| "group" \| "room"` 定義済                                                                                                    |
 | `bot/src/api/generated.ts`  | ai 側と同じ生成型、`sessionKey` なし                                                                                                                     |
 
 #### `openapi/aka.openapi.yaml`

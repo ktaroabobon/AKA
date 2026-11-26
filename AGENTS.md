@@ -13,5 +13,5 @@ AKA は、妹のぬいぐるみ「紅（あか）」を LINE Bot にした個人
 
 ## 入口
 
-- 原則を補う薄いルールは `.claude/rules/`（architecture / security / dev-environment）
+- 原則を補う薄いルールは `.claude/rules/`（architecture / security / dev-environment）。Claude Code は毎回自動で読み込む。Codex / Gemini CLI は作業を始める前に読む
 - 背景と構造は `README.md` と `.kiro/steering/`

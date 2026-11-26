@@ -4,7 +4,7 @@
 
 **Monorepo (pnpm workspace)** で 2 つの実行環境を分離する。各 workspace の内部は **層 (lib / schemas / services / routes / app)** で責務を切り、依存方向を一方向に固定する。
 
-「個人プロジェクトとしてのシンプルさ」を最優先 (`.claude/rules/simplicity.md` 系の YAGNI / KISS と整合)。ファサード層や将来用フラグは入れない。
+「個人プロジェクトとしてのシンプルさ」を最優先 (`AGENTS.md` の「足すより減らす」と整合)。ファサード層や将来用フラグは入れない。
 
 ## Directory Patterns
 
